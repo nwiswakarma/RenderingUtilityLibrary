@@ -1,0 +1,27 @@
+{
+	"FileVersion" : 1,
+	"Version" : 1,
+	"VersionName" : "1.0.0",
+	"FriendlyName" : "Rendering Utility Library",
+	"CreatedBy" : "Nuraga Wiswakarma", 
+	"Description" : "",
+	"Category" : "Programming",
+	"EnabledByDefault" : "true",
+	"CanContainContent" : "false",
+	"Modules" :
+	[		
+		{
+			"Name" : "RenderingUtilityLibrary",
+			"Type" : "Runtime",
+            "LoadingPhase": "PostConfigInit",
+			"WhitelistPlatforms" : [ "Win64", "Win32", "Mac" ]
+		}
+	],
+	"Plugins":
+    [
+		{
+			"Name" : "GenericWorkerThread",
+			"Enabled": true
+		}
+	]
+}
