@@ -274,6 +274,7 @@ int32 FRULPrefixSumScan::ExclusiveScan(
 
     // Local scan kernel
 
+    RHICmdList.BeginComputePass(TEXT("RULPrefixSumLocalScan"));
     TShaderMapRef<FRULPrefixSumLocalScanCS<VN,1>> LocalScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
     LocalScanCS->SetShader(RHICmdList);
     LocalScanCS->BindSRV(RHICmdList, TEXT("SrcData"), SrcDataSRV);
@@ -282,6 +283,7 @@ int32 FRULPrefixSumScan::ExclusiveScan(
     LocalScanCS->SetParameter(RHICmdList, TEXT("_ElementCount"), ElementCount);
     DispatchComputeShader(RHICmdList, *LocalScanCS, blockCount, 1, 1);
     LocalScanCS->UnbindBuffers(RHICmdList);
+    RHICmdList.EndComputePass();
 
     if (blockGroupCount > 1)
     {
@@ -290,6 +292,7 @@ int32 FRULPrefixSumScan::ExclusiveScan(
 
         // Block sum scan
 
+        RHICmdList.BeginComputePass(TEXT("RULPrefixSumLocalScan"));
         TShaderMapRef<FRULPrefixSumLocalScanCS<VN,0>> BlockScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         BlockScanCS->SetShader(RHICmdList);
         BlockScanCS->BindUAV(RHICmdList, TEXT("DstData"), SumBuffer.UAV);
@@ -297,9 +300,11 @@ int32 FRULPrefixSumScan::ExclusiveScan(
         BlockScanCS->SetParameter(RHICmdList, TEXT("_ElementCount"), ElementCount);
         DispatchComputeShader(RHICmdList, *BlockScanCS, blockGroupCount, 1, 1);
         BlockScanCS->UnbindBuffers(RHICmdList);
+        RHICmdList.EndComputePass();
 
         // Block sum top level scan
 
+        RHICmdList.BeginComputePass(TEXT("RULPrefixSumTopLevelScan"));
         TShaderMapRef<FRULPrefixSumTopLevelScanCS<VN,1>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("DstData"), SumBuffer.UAV);
@@ -309,29 +314,35 @@ int32 FRULPrefixSumScan::ExclusiveScan(
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_ScanBlockCount"), scanBlockGroupCount);
         DispatchComputeShader(RHICmdList, *TopLevelScanCS, 1, 1, 1);
         TopLevelScanCS->UnbindBuffers(RHICmdList);
+        RHICmdList.EndComputePass();
 
         // Add block offset
 
         TShaderMapRef<FRULPrefixSumAddOffsetCS<VN>> AddOffsetCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
 
+        RHICmdList.BeginComputePass(TEXT("RULPrefixSumAddOffset"));
         AddOffsetCS->SetShader(RHICmdList);
         AddOffsetCS->BindUAV(RHICmdList, TEXT("DstData"), SumBuffer.UAV);
         AddOffsetCS->BindUAV(RHICmdList, TEXT("SumData"), BlockSumData.UAV);
         AddOffsetCS->SetParameter(RHICmdList, TEXT("_ElementCount"), blockCount);
         DispatchComputeShader(RHICmdList, *AddOffsetCS, (blockGroupCount-1), 1, 1);
         AddOffsetCS->UnbindBuffers(RHICmdList);
+        RHICmdList.EndComputePass();
 
+        RHICmdList.BeginComputePass(TEXT("RULPrefixSumAddOffset"));
         AddOffsetCS->SetShader(RHICmdList);
         AddOffsetCS->BindUAV(RHICmdList, TEXT("DstData"), ScanResult.UAV);
         AddOffsetCS->BindUAV(RHICmdList, TEXT("SumData"), SumBuffer.UAV);
         AddOffsetCS->SetParameter(RHICmdList, TEXT("_ElementCount"), ElementCount);
         DispatchComputeShader(RHICmdList, *AddOffsetCS, (blockCount-1), 1, 1);
         AddOffsetCS->UnbindBuffers(RHICmdList);
+        RHICmdList.EndComputePass();
     }
     else
     {
         // Top level scan
 
+        RHICmdList.BeginComputePass(TEXT("RULPrefixSumTopLevelScan"));
         TShaderMapRef<FRULPrefixSumTopLevelScanCS<VN,0>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("DstData"), ScanResult.UAV);
@@ -341,11 +352,13 @@ int32 FRULPrefixSumScan::ExclusiveScan(
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_ScanBlockCount"), scanBlockCount);
         DispatchComputeShader(RHICmdList, *TopLevelScanCS, 1, 1, 1);
         TopLevelScanCS->UnbindBuffers(RHICmdList);
+        RHICmdList.EndComputePass();
 
         // Add block offset to local scan
 
         if (blockCount > 1)
         {
+            RHICmdList.BeginComputePass(TEXT("RULPrefixSumAddOffset"));
             TShaderMapRef<FRULPrefixSumAddOffsetCS<VN>> AddOffsetCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
             AddOffsetCS->SetShader(RHICmdList);
             AddOffsetCS->BindUAV(RHICmdList, TEXT("DstData"), ScanResult.UAV);
@@ -353,6 +366,7 @@ int32 FRULPrefixSumScan::ExclusiveScan(
             AddOffsetCS->SetParameter(RHICmdList, TEXT("_ElementCount"), ElementCount);
             DispatchComputeShader(RHICmdList, *AddOffsetCS, (blockCount-1), 1, 1);
             AddOffsetCS->UnbindBuffers(RHICmdList);
+            RHICmdList.EndComputePass();
         }
     }
 

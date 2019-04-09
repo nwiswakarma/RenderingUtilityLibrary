@@ -43,6 +43,9 @@ typedef TShaderParameterTypeInfo<uint32>::TAlignedType      FRULAlignedUint;
 typedef TShaderParameterTypeInfo<FVector2D>::TAlignedType   FRULAlignedVector2D;
 typedef TAlignedTypedef<FRULUintPoint,8>::Type              FRULAlignedUintPoint;
 
+// 3D Data
+typedef TShaderParameterTypeInfo<FVector>::TAlignedType     FRULAlignedVector;
+
 // 4D Data
 typedef TShaderParameterTypeInfo<FIntVector4>::TAlignedType FRULAlignedIntVector4;
 typedef TAlignedTypedef<FUintVector4,16>::Type              FRULAlignedUintVector4;
