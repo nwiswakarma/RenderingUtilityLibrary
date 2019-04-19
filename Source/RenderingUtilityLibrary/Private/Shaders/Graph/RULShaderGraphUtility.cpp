@@ -31,6 +31,8 @@
 #include "Shaders/Graph/RULShaderGraphTask.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ApplyMaterial.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawGeometry.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialPoly.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialQuad.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ResolveOutput.h"
 
 void URULShaderGraphUtility::AddTask(
@@ -228,6 +230,74 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphUtility::AddApplyMaterialTaskW
     if (IsValid(Task))
     {
         Task->SetParameters(ScalarParameters, VectorParameters, TextureParameters);
+    }
+
+    return Task;
+}
+
+URULShaderGraphTask_DrawMaterialQuad* URULShaderGraphUtility::AddDrawMaterialQuadTask(
+    URULShaderGraph* Graph,
+    TSubclassOf<URULShaderGraphTask_DrawMaterialQuad> TaskType,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+    URULShaderGraphTask* OutputTask,
+    const FRULShaderGraphMaterialRef& MaterialRef,
+    const TArray<FRULShaderQuadGeometry>& Quads
+    )
+{
+    URULShaderGraphTask_DrawMaterialQuad* Task = nullptr;
+
+    if (IsValid(Graph))
+    {
+        if (TaskType.Get())
+        {
+            Task = NewObject<URULShaderGraphTask_DrawMaterialQuad>(Graph, TaskType);
+        }
+        else
+        {
+            Task = NewObject<URULShaderGraphTask_DrawMaterialQuad>(Graph);
+        }
+
+        if (IsValid(Task))
+        {
+            Task->MaterialRef = MaterialRef;
+            Task->Quads = Quads;
+            AddTask(*Graph, *Task, TaskConfig, ConfigMethod, OutputTask);
+        }
+    }
+
+    return Task;
+}
+
+URULShaderGraphTask_DrawMaterialPoly* URULShaderGraphUtility::AddDrawMaterialPolyTask(
+    URULShaderGraph* Graph,
+    TSubclassOf<URULShaderGraphTask_DrawMaterialPoly> TaskType,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+    URULShaderGraphTask* OutputTask,
+    const FRULShaderGraphMaterialRef& MaterialRef,
+    const TArray<FRULShaderPolyGeometry>& Polys
+    )
+{
+    URULShaderGraphTask_DrawMaterialPoly* Task = nullptr;
+
+    if (IsValid(Graph))
+    {
+        if (TaskType.Get())
+        {
+            Task = NewObject<URULShaderGraphTask_DrawMaterialPoly>(Graph, TaskType);
+        }
+        else
+        {
+            Task = NewObject<URULShaderGraphTask_DrawMaterialPoly>(Graph);
+        }
+
+        if (IsValid(Task))
+        {
+            Task->MaterialRef = MaterialRef;
+            Task->Polys = Polys;
+            AddTask(*Graph, *Task, TaskConfig, ConfigMethod, OutputTask);
+        }
     }
 
     return Task;

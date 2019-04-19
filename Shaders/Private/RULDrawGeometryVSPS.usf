@@ -84,8 +84,8 @@ void DrawQuadVS(
 
     float2   rot = { cos(QuadTransform.y), sin(QuadTransform.y) };
     float2x2 mat = {
-        rot.x, -rot.y,
-        rot.y,  rot.x
+         rot.x, rot.y,
+        -rot.y, rot.x
         };
 
     float2 pos = QuadGeom.xy + mul(InPosUV.xy * QuadGeom.zw * QuadTransform.x, mat);

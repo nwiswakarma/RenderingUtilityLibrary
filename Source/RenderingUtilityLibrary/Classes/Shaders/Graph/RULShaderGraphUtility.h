@@ -29,6 +29,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Shaders/RULShaderGeometry.h"
 #include "Shaders/Graph/RULShaderGraphTypes.h"
 #include "RULShaderGraphUtility.generated.h"
 
@@ -37,6 +38,8 @@ class UTextureRenderTarget2D;
 class URULShaderGraphTask;
 class URULShaderGraphTask_ResolveOutput;
 class URULShaderGraphTask_DrawGeometry;
+class URULShaderGraphTask_DrawMaterialPoly;
+class URULShaderGraphTask_DrawMaterialQuad;
 class URULShaderGraphTask_ApplyMaterial;
 
 UCLASS()
@@ -117,5 +120,27 @@ public:
         const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
         const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
         const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="DrawMaterialQuad", AutoCreateRefTerm="TaskConfig,MaterialRef", AdvancedDisplay="Graph,TaskType,ConfigMethod,OutputTask"))
+    static URULShaderGraphTask_DrawMaterialQuad* AddDrawMaterialQuadTask(
+        URULShaderGraph* Graph,
+        TSubclassOf<URULShaderGraphTask_DrawMaterialQuad> TaskType,
+        const FRULShaderGraphTaskConfig& TaskConfig,
+        TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+        URULShaderGraphTask* OutputTask,
+        const FRULShaderGraphMaterialRef& MaterialRef,
+        const TArray<FRULShaderQuadGeometry>& Quads
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="DrawMaterialPoly", AutoCreateRefTerm="TaskConfig,MaterialRef", AdvancedDisplay="Graph,TaskType,ConfigMethod,OutputTask"))
+    static URULShaderGraphTask_DrawMaterialPoly* AddDrawMaterialPolyTask(
+        URULShaderGraph* Graph,
+        TSubclassOf<URULShaderGraphTask_DrawMaterialPoly> TaskType,
+        const FRULShaderGraphTaskConfig& TaskConfig,
+        TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+        URULShaderGraphTask* OutputTask,
+        const FRULShaderGraphMaterialRef& MaterialRef,
+        const TArray<FRULShaderPolyGeometry>& Polys
         );
 };
