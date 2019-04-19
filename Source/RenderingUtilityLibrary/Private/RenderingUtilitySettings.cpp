@@ -23,35 +23,20 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "RenderingUtilitySettings.h"
+#include "Shaders/RULShaderMaterialLibrary.h"
+
+const URULShaderMaterialLibrary* URenderingUtilitySettings::GetMaterialLibrary()
 {
-    public class RenderingUtilityLibrary : ModuleRules
+    const URenderingUtilitySettings* Settings = GetDefault<URenderingUtilitySettings>();
+    const URULShaderMaterialLibrary* Library = nullptr;
+
+    if (IsValid(Settings))
     {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
-
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
-
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
+        Library = GetDefault<URULShaderMaterialLibrary>(*Settings->MaterialLibraryType);
     }
+
+    return Library;
 }

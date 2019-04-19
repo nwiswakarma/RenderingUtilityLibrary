@@ -23,35 +23,32 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_ApplyMaterial.h"
+#include "RULShaderGraphTask_BlurFilter1D.generated.h"
+
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
+class URULShaderGraph;
+
+UCLASS()
+class RENDERINGUTILITYLIBRARY_API URULShaderGraphTask_BlurFilter1D : public URULShaderGraphTask_ApplyMaterial
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	GENERATED_BODY()
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+protected:
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+    virtual void ExecuteMaterialFunction(URULShaderGraph& Graph, UMaterialInstanceDynamic& MID);
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
-}
+public:
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(DisplayName="Direction X Parameter Name"))
+    FName DirectionXParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(DisplayName="Direction Y Parameter Name"))
+    FName DirectionYParameterName;
+};

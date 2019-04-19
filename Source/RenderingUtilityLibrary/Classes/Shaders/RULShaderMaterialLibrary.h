@@ -23,35 +23,25 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#pragma once
+
+#include "CoreMinimal.h"
+#include "RULShaderMaterialLibrary.generated.h"
+
+class UMaterialInterface;
+
+UCLASS(BlueprintType, Blueprintable)
+class RENDERINGUTILITYLIBRARY_API URULShaderMaterialLibrary : public UObject
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	GENERATED_BODY()
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+public:
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
+    TMap<FName, UMaterialInterface*> MaterialMap;
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
-}
+    UFUNCTION(BlueprintCallable)
+    UMaterialInterface* GetMaterial(FName MaterialName) const;
+};

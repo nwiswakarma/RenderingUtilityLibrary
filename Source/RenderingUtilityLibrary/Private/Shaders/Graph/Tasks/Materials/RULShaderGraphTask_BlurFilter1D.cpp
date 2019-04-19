@@ -23,35 +23,37 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "Shaders/Graph/Tasks/Materials/RULShaderGraphTask_BlurFilter1D.h"
+#include "Shaders/RULShaderLibrary.h"
+#include "Shaders/Graph/RULShaderGraph.h"
+
+void URULShaderGraphTask_BlurFilter1D::ExecuteMaterialFunction(URULShaderGraph& Graph, UMaterialInstanceDynamic& MID)
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    ApplyMaterialParameters(MID);
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+    // X-Axis Blur
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+    SetScalarParameterValue(DirectionXParameterName, 1.f);
+    SetScalarParameterValue(DirectionYParameterName, 0.f);
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
+    URULShaderLibrary::ApplyMaterial(
+        Graph.GetGraphManager(),
+        &MID,
+        Output.RenderTarget,
+        TaskConfig.DrawConfig
+        );
+
+    // Y-Axis Blur
+
+    SetScalarParameterValue(DirectionXParameterName, 0.f);
+    SetScalarParameterValue(DirectionYParameterName, 1.f);
+
+    URULShaderLibrary::ApplyMaterial(
+        Graph.GetGraphManager(),
+        &MID,
+        Output.RenderTarget,
+        TaskConfig.DrawConfig
+        );
 }

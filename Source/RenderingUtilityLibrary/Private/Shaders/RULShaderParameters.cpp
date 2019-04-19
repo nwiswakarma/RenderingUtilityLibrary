@@ -31,6 +31,14 @@
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 
+FRULShaderOutputConfig::FRULShaderOutputConfig()
+    : SizeX(0)
+    , SizeY(0)
+    , Format(RTF_RGBA16f)
+    , bForceLinearGamma(false)
+{
+}
+
 bool FRULShaderTextureParameterInputResource::HasValidResource() const
 {
     switch (TextureType)

@@ -40,13 +40,16 @@ void FRULRHIUtilityLibrary::DrawIndexedPrimitiveRaw(
     const void* VertexData,
     uint32 VertexDataStride,
     const void* IndexData,
-    uint32 IndexDataStride
+    uint32 IndexDataStride,
+    const void* ColorData,
+    uint32 ColorDataStride
     )
 {
     check(IndexData != nullptr);
     check(VertexData != nullptr);
 
     const uint32 VertexDataSize = VertexDataStride * NumVertices;
+    const uint32 ColorDataSize = ColorDataStride * NumVertices;
     const uint32 IndexDataSize = IndexDataStride * NumIndices;
 
     // Construct volatile vertex buffer
@@ -58,6 +61,20 @@ void FRULRHIUtilityLibrary::DrawIndexedPrimitiveRaw(
         VertexBufferRHI = RHICreateAndLockVertexBuffer(VertexDataSize, BUF_Volatile, CreateInfo, BufferPtr);
         FPlatformMemory::Memcpy(BufferPtr, VertexData, VertexDataSize);
         RHIUnlockVertexBuffer(VertexBufferRHI);
+        RHICmdList.SetStreamSource(0, VertexBufferRHI, 0);
+    }
+
+    // Construct volatile color buffer
+
+    FVertexBufferRHIRef ColorBufferRHI;
+    if (ColorData)
+    {
+        FRHIResourceCreateInfo CreateInfo;
+        void* BufferPtr;
+        ColorBufferRHI = RHICreateAndLockVertexBuffer(ColorDataSize, BUF_Volatile, CreateInfo, BufferPtr);
+        FPlatformMemory::Memcpy(BufferPtr, ColorData, ColorDataSize);
+        RHIUnlockVertexBuffer(ColorBufferRHI);
+        RHICmdList.SetStreamSource(1, ColorBufferRHI, 0);
     }
 
     // Construct volatile index buffer
@@ -73,11 +90,11 @@ void FRULRHIUtilityLibrary::DrawIndexedPrimitiveRaw(
 
     // Draw primitives
 
-	RHICmdList.SetStreamSource(0, VertexBufferRHI, 0);
 	RHICmdList.DrawIndexedPrimitive(IndexBufferRHI, MinVertexIndex, 0, NumVertices, 0, NumPrimitives, 1);
 
     // Release buffers
 
 	IndexBufferRHI.SafeRelease();
+    ColorBufferRHI.SafeRelease();
 	VertexBufferRHI.SafeRelease();
 }

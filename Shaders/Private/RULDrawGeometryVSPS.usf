@@ -27,6 +27,10 @@
 
 #include "/Engine/Private/Common.ush"
 
+#ifndef RUL_ENABLE_VERTEX_COLOR
+#define RUL_ENABLE_VERTEX_COLOR 0
+#endif
+
 Buffer<float4> QuadGeomData;
 Buffer<float4> QuadTransformData;
 
@@ -43,21 +47,29 @@ void DrawScreenVS(
 
 void DrawGeometryVS(
 	in float3 Position : ATTRIBUTE0,
-	out noperspective MaterialFloat OutColor : COLOR0,
+#if RUL_ENABLE_VERTEX_COLOR
+    in float4 InColor : ATTRIBUTE1,
+#endif
+	out noperspective MaterialFloat4 OutColor : COLOR0,
 	out float4 OutPos : SV_POSITION
 	)
 {
     float2 pos = Position.xy*_DrawScaleBias.xy + _DrawScaleBias.zw;
     OutPos = float4(pos.x, -pos.y, 0, 1);
-    OutColor = Position.z;
+
+#if RUL_ENABLE_VERTEX_COLOR
+    OutColor = InColor;
+#else
+    OutColor = float4(Position.zzz, 1.0);
+#endif
 }
 
 void DrawGeometryPS(
-	in MaterialFloat InColor : COLOR0,
+	in MaterialFloat4 InColor : COLOR0,
 	out float4 OutColor : SV_Target0
 	)
 {
-    OutColor = float4(InColor.rrr, 1.f);
+    OutColor = InColor;
 }
 
 void DrawQuadVS(

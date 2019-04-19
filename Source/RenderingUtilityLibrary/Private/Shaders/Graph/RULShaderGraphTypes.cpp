@@ -23,35 +23,54 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "Shaders/Graph/RULShaderGraphTypes.h"
+
+FRULShaderGraphTaskConfig::FRULShaderGraphTaskConfig()
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    OutputConfig.SizeX = 0;
+    OutputConfig.SizeY = 0;
+    OutputConfig.Format = RTF_RGBA16f;
+    OutputConfig.bForceLinearGamma = false;
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+    DrawConfig.BlendType = ERULShaderDrawBlendType::DB_Opaque;
+    DrawConfig.bClearRenderTarget = false;
+}
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+FRULShaderGraphOutputRT::FRULShaderGraphOutputRT()
+    : RefId(nullptr)
+    , RenderTarget(nullptr)
+{
+}
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
+FRULShaderGraphOutputRT::FRULShaderGraphOutputRT(UTextureRenderTarget2D* InRenderTarget)
+    : RefId(new FRefCountType)
+    , RenderTarget(InRenderTarget)
+{
+}
+
+bool FRULShaderGraphOutputRT::IsValidOutput() const
+{
+    return IsValid(RenderTarget) && IsFree();
+}
+
+bool FRULShaderGraphOutputRT::CompareFormat(const FRULShaderOutputConfig& OutputConfig) const
+{
+    return (
+        RenderTarget->SizeX == OutputConfig.SizeX &&
+        RenderTarget->SizeY == OutputConfig.SizeY &&
+        RenderTarget->GetFormat() == GetPixelFormatFromRenderTargetFormat(OutputConfig.Format)
+        );
+}
+
+void FRULShaderGraphOutputRT::ClearReferenceId()
+{
+    RefId.SafeRelease();
+}
+
+void FRULShaderGraphOutputRT::CreateReferenceId()
+{
+    ClearReferenceId();
+    RefId = new FRefCountType;
 }

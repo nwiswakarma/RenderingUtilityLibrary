@@ -44,16 +44,20 @@ public:
         const void* VertexData,
         uint32 VertexDataStride,
         const void* IndexData,
-        uint32 IndexDataStride
+        uint32 IndexDataStride,
+        const void* ColorData = nullptr,
+        uint32 ColorDataStride = 0
         );
 
     template<class FVertexType>
     static void DrawTriangleList(
         FRHICommandList& RHICmdList,
         const TArray<FVertexType>& VertexData,
-        const TArray<int32>& IndexData
+        const TArray<int32>& IndexData,
+        const TArray<FColor>* ColorData = nullptr
         )
     {
+        bool bUseColorData = (ColorData && (ColorData->Num() == VertexData.Num()));
         DrawIndexedPrimitiveRaw(
             RHICmdList,
             0,
@@ -63,7 +67,9 @@ public:
             VertexData.GetData(),
             VertexData.GetTypeSize(),
             IndexData.GetData(),
-            IndexData.GetTypeSize()
+            IndexData.GetTypeSize(),
+            bUseColorData ? ColorData->GetData()     : nullptr,
+            bUseColorData ? ColorData->GetTypeSize() : 0
             );
     }
 };

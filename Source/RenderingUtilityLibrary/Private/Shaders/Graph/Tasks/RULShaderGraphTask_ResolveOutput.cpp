@@ -23,35 +23,37 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_ResolveOutput.h"
+#include "Shaders/RULShaderLibrary.h"
+#include "Shaders/Graph/RULShaderGraph.h"
+
+URULShaderGraphTask_ResolveOutput::URULShaderGraphTask_ResolveOutput(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-    public class RenderingUtilityLibrary : ModuleRules
+    bRequireOutput = false;
+}
+
+void URULShaderGraphTask_ResolveOutput::Initialize(URULShaderGraph* Graph)
+{
+    check(IsValid(Graph));
+    DependencyMap.Emplace(TEXT("SourceOutput"), SourceTask);
+}
+
+void URULShaderGraphTask_ResolveOutput::Execute(URULShaderGraph* Graph)
+{
+    check(IsValid(Graph));
+
+    UTextureRenderTarget2D* SourceOutputRT;
+    SourceOutputRT = GetOutputRTFromDependencyMap(TEXT("SourceOutput"));
+
+    if (IsValid(SourceOutputRT) && IsValid(RenderTargetTexture))
     {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
-
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
-
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
+        URULShaderLibrary::CopyToResolveTarget(
+            Graph->GetGraphManager(),
+            FRULShaderTextureParameterInput(SourceOutputRT),
+            RenderTargetTexture
+            );
     }
 }

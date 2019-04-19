@@ -31,6 +31,7 @@
 #include "RULShaderParameters.generated.h"
 
 class UTexture2D;
+class UTextureRenderTarget2D;
 class FTexture2DResource;
 class FTextureRenderTarget2DResource;
 
@@ -43,6 +44,41 @@ enum class ERULShaderDrawBlendType : uint8
 	DB_Add    = 3,
 	DB_Sub    = 4,
 	DB_SubRev = 5
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderOutputConfig
+{
+	GENERATED_USTRUCT_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(UIMin=0, ClampMin=0))
+    int32 SizeX;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(UIMin=0, ClampMin=0))
+    int32 SizeY;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TEnumAsByte<enum ETextureRenderTargetFormat> Format;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool bForceLinearGamma;
+
+    FRULShaderOutputConfig();
+
+    FORCEINLINE FIntPoint GetDimension() const
+    {
+        return { SizeX, SizeY };
+    }
+
+    FORCEINLINE bool Compare(const FRULShaderOutputConfig& Other) const
+    {
+        return (
+            SizeX == Other.SizeX &&
+            SizeX == Other.SizeY &&
+            Format == Other.Format &&
+            bForceLinearGamma == Other.bForceLinearGamma
+            );
+    }
 };
 
 USTRUCT(BlueprintType)

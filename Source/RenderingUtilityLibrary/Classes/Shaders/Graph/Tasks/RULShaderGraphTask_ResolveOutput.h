@@ -23,35 +23,29 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Shaders/Graph/RULShaderGraphTask.h"
+#include "RULShaderGraphTask_ResolveOutput.generated.h"
+
+class UTextureRenderTarget2D;
+
+UCLASS()
+class RENDERINGUTILITYLIBRARY_API URULShaderGraphTask_ResolveOutput : public URULShaderGraphTask
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	GENERATED_UCLASS_BODY()
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+public:
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    URULShaderGraphTask*    SourceTask;
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
-}
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    UTextureRenderTarget2D* RenderTargetTexture;
+
+    virtual void Initialize(URULShaderGraph* Graph) override;
+    virtual void Execute(URULShaderGraph* Graph) override;
+};

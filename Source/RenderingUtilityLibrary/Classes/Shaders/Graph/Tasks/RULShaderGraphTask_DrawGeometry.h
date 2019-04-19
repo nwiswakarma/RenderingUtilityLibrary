@@ -23,35 +23,29 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Shaders/Graph/RULShaderGraphTask.h"
+#include "RULShaderGraphTask_DrawGeometry.generated.h"
+
+UCLASS()
+class RENDERINGUTILITYLIBRARY_API URULShaderGraphTask_DrawGeometry : public URULShaderGraphTask
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+	GENERATED_BODY()
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+public:
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FVector> Vertices;
 
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
-}
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FColor> Colors;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<int32> Indices;
+
+    virtual void Execute(URULShaderGraph* Graph) override;
+};

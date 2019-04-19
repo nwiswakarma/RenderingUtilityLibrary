@@ -46,11 +46,50 @@
 #include "Shaders/RULShaderDefinitions.h"
 #include "Shaders/RULPrefixSumScan.h"
 
-class FRULShaderDrawGeometryVS : public FRULBaseVertexShader
+class FRULColorGeometryVertexDeclaration : public FRenderResource
 {
+public:
+
+	FVertexDeclarationRHIRef VertexDeclarationRHI;
+
+	virtual void InitRHI() override
+	{
+		FVertexDeclarationElementList Elements;
+		Elements.Add(FVertexElement(0, 0, VET_Float3, 0, sizeof(FVector)));
+		Elements.Add(FVertexElement(1, 0, VET_Color,  1, sizeof(FColor)));
+		VertexDeclarationRHI = PipelineStateCache::GetOrCreateVertexDeclaration(Elements);
+	}
+	virtual void ReleaseRHI() override
+	{
+		VertexDeclarationRHI.SafeRelease();
+	}
+};
+
+TGlobalResource<FRULColorGeometryVertexDeclaration> GRULColorGeometryVertexDeclaration;
+
+template<uint32 bEnableVertexColor>
+class TRULShaderDrawGeometryVS : public FRULBaseVertexShader
+{
+public:
+
     typedef FRULBaseVertexShader FBaseType;
 
-    RUL_DECLARE_SHADER_CONSTRUCTOR_DEFAULT_STATICS(FRULShaderDrawGeometryVS, Global, true)
+    DECLARE_SHADER_TYPE(TRULShaderDrawGeometryVS, Global);
+
+public:
+
+    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+    {
+		return true;
+    }
+
+    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+    {
+        FBaseType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+        OutEnvironment.SetDefine(TEXT("RUL_ENABLE_VERTEX_COLOR"), (bEnableVertexColor>0) ? 1 : 0);
+    }
+
+    RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER(TRULShaderDrawGeometryVS)
 
     RUL_DECLARE_SHADER_PARAMETERS_0(SRV,,)
     RUL_DECLARE_SHADER_PARAMETERS_0(UAV,,)
@@ -74,7 +113,8 @@ class FRULShaderDrawGeometryPS : public FRULBasePixelShader
     RUL_DECLARE_SHADER_PARAMETERS_0(Value,,)
 };
 
-IMPLEMENT_SHADER_TYPE(, FRULShaderDrawGeometryVS, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawGeometryVS"), SF_Vertex);
+IMPLEMENT_SHADER_TYPE(template<>, TRULShaderDrawGeometryVS<0>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawGeometryVS"), SF_Vertex);
+IMPLEMENT_SHADER_TYPE(template<>, TRULShaderDrawGeometryVS<1>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawGeometryVS"), SF_Vertex);
 IMPLEMENT_SHADER_TYPE(, FRULShaderDrawGeometryPS, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawGeometryPS"), SF_Pixel);
 
 class FRULShaderDrawScreenVS : public FRULBaseVertexShader
@@ -89,13 +129,13 @@ class FRULShaderDrawScreenVS : public FRULBaseVertexShader
 };
 
 template<uint32 bEnableVertexColor>
-class FRULShaderDrawScreenMS : public FRULBaseMaterialShader
+class TRULShaderDrawScreenMS : public FRULBaseMaterialShader
 {
 public:
 
     typedef FRULBaseMaterialShader FBaseType;
 
-    DECLARE_SHADER_TYPE(FRULShaderDrawScreenMS, Material);
+    DECLARE_SHADER_TYPE(TRULShaderDrawScreenMS, Material);
 
 public:
 
@@ -112,7 +152,7 @@ public:
         OutEnvironment.SetDefine(TEXT("RUL_FILTER_HAS_VALID_MATERIAL_DOMAIN"), ShouldCompilePermutation(Platform, Material) ? 1 : 0);
     }
 
-    RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER_WITH_TEXTURE(FRULShaderDrawScreenMS)
+    RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER_WITH_TEXTURE(TRULShaderDrawScreenMS)
 
     RUL_DECLARE_SHADER_PARAMETERS_1(
         Texture,
@@ -134,8 +174,8 @@ public:
 };
 
 IMPLEMENT_SHADER_TYPE(, FRULShaderDrawScreenVS, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawScreenVS"), SF_Vertex);
-IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FRULShaderDrawScreenMS<0>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawScreenMS.usf"), TEXT("MainPS"), SF_Pixel);
-IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FRULShaderDrawScreenMS<1>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawScreenMS.usf"), TEXT("MainPS"), SF_Pixel);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TRULShaderDrawScreenMS<0>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawScreenMS.usf"), TEXT("MainPS"), SF_Pixel);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, TRULShaderDrawScreenMS<1>, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawScreenMS.usf"), TEXT("MainPS"), SF_Pixel);
 
 class FRULShaderDrawQuadVS : public FRULBaseVertexShader
 {
@@ -421,6 +461,82 @@ void URULShaderLibrary::SetupDefaultGraphicsPSOInit(
     GraphicsPSOInit.PrimitiveType = PrimitiveType;
 }
 
+void URULShaderLibrary::CopyToResolveTarget(
+    UObject* WorldContextObject,
+    FRULShaderTextureParameterInput SourceTexture,
+    UTextureRenderTarget2D* RenderTarget,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
+
+    if (! IsValid(World))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        return;
+    }
+
+    if (! World->Scene)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID WORLD SCENE"));
+        return;
+    }
+
+    if (! IsValid(RenderTarget))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID RENDER TARGET"));
+        return;
+    }
+
+    RenderTargetResource = static_cast<FTextureRenderTarget2DResource*>(RenderTarget->GameThread_GetRenderTargetResource());
+
+    if (! RenderTargetResource)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        return;
+    }
+
+    struct FRenderParameter
+    {
+        ERHIFeatureLevel::Type FeatureLevel;
+        FRULShaderTextureParameterInputResource SourceTextureResource;
+        FTextureRenderTarget2DResource* RenderTargetResource;
+        UGWTTickEvent* CallbackEvent;
+    };
+
+    FRenderParameter RenderParameter = {
+        World->Scene->GetFeatureLevel(),
+        SourceTexture.GetResource_GT(),
+        RenderTargetResource,
+        CallbackEvent
+        };
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_CopyToResolveTarget)(
+        [RenderParameter](FRHICommandListImmediate& RHICmdList)
+        {
+            check(IsInRenderingThread());
+            if (RenderParameter.RenderTargetResource)
+            {
+                // Prepare source and resolve target textures
+                FTextureRHIParamRef SourceTexture = RenderParameter.SourceTextureResource.GetTextureParamRef_RT();
+                FTextureRHIParamRef TargetTexture = RenderParameter.RenderTargetResource->TextureRHI;
+
+                // Copy to resolve target
+                if (SourceTexture && TargetTexture)
+                {
+                    RHICmdList.CopyToResolveTarget(
+                        SourceTexture,
+                        TargetTexture,
+                        FResolveParams()
+                        );
+                }
+            }
+            FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
+        }
+    );
+}
+
 void URULShaderLibrary::DrawPoints(
     UObject* WorldContextObject,
     UTextureRenderTarget2D* RenderTarget,
@@ -609,7 +725,107 @@ void URULShaderLibrary::DrawGeometry(
 
     // Construct vertex data
 
-    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawGeometery)(
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawGeometry)(
+        [RenderParameter](FRHICommandListImmediate& RHICmdList)
+        {
+            URULShaderLibrary::DrawGeometry_RT(
+                RHICmdList,
+                RenderParameter.FeatureLevel,
+                RenderParameter.RenderTargetResource,
+                RenderParameter.DrawConfig,
+                RenderParameter.DrawSize,
+                RenderParameter.Vertices,
+                RenderParameter.Indices
+                );
+            FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
+        }
+    );
+}
+
+void URULShaderLibrary::DrawGeometryColors(
+    UObject* WorldContextObject,
+    UTextureRenderTarget2D* RenderTarget,
+    FRULShaderDrawConfig DrawConfig,
+    FIntPoint DrawSize,
+    const TArray<FVector>& Vertices,
+    const TArray<FColor>& Colors,
+    const TArray<int32>& Indices,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	const UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
+
+    if (! IsValid(World))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        return;
+    }
+
+    if (! World->Scene)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INVALID WORLD SCENE"));
+        return;
+    }
+
+    if (! IsValid(RenderTarget))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INVALID RENDER TARGET"));
+        return;
+    }
+
+    if (Vertices.Num() < 3)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, VERTEX COUNT < 3"));
+        return;
+    }
+
+    if (Indices.Num() < 3)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INDEX COUNT < 3"));
+        return;
+    }
+
+    if (DrawSize.X <= 0 || DrawSize.Y <= 0)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INVALID DRAW SIZE"));
+        return;
+    }
+
+    RenderTargetResource = static_cast<FTextureRenderTarget2DResource*>(RenderTarget->GameThread_GetRenderTargetResource());
+
+    if (! RenderTargetResource)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawGeometryColors() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        return;
+    }
+
+    struct FRenderParameter
+    {
+        ERHIFeatureLevel::Type FeatureLevel;
+        FTextureRenderTarget2DResource* RenderTargetResource;
+        FRULShaderDrawConfig DrawConfig;
+        FIntPoint DrawSize;
+        TArray<FVector> Vertices;
+        TArray<FColor> Colors;
+        TArray<int32> Indices;
+        UGWTTickEvent* CallbackEvent;
+    };
+
+    FRenderParameter RenderParameter = {
+        World->Scene->GetFeatureLevel(),
+        RenderTargetResource,
+        DrawConfig,
+        DrawSize,
+        Vertices,
+        Colors,
+        Indices,
+        CallbackEvent
+        };
+
+    // Construct vertex data
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawGeometry)(
         [RenderParameter](FRHICommandListImmediate& RHICmdList)
         {
             URULShaderLibrary::DrawGeometry_RT(
@@ -633,7 +849,8 @@ void URULShaderLibrary::DrawGeometry_RT(
     FRULShaderDrawConfig DrawConfig,
     FIntPoint DrawSize,
     const TArray<FVector>& Vertices,
-    const TArray<int32>& Indices
+    const TArray<int32>& Indices,
+    const TArray<FColor>* Colors
     )
 {
     check(IsInRenderingThread());
@@ -652,20 +869,33 @@ void URULShaderLibrary::DrawGeometry_RT(
         return;
     }
 
+    bool bUseColorBuffer = (Colors && Colors->Num() == Vertices.Num());
+
     // Prepare graphics pipelane
 
-    TShaderMapRef<FRULShaderDrawGeometryVS> VSShader(GetGlobalShaderMap(FeatureLevel));
+    FRULBaseVertexShader* VSShader;
     TShaderMapRef<FRULShaderDrawGeometryPS> PSShader(GetGlobalShaderMap(FeatureLevel));
 
     FGraphicsPipelineStateInitializer GraphicsPSOInit;
     SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleList, DrawConfig);
-    GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector3();
-    GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GETSAFERHISHADER_VERTEX(*VSShader);
     GraphicsPSOInit.BoundShaderState.PixelShaderRHI = GETSAFERHISHADER_PIXEL(*PSShader);
+
+    if (bUseColorBuffer)
+    {
+        VSShader = *TShaderMapRef<TRULShaderDrawGeometryVS<1>>(GetGlobalShaderMap(FeatureLevel));
+        GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GRULColorGeometryVertexDeclaration.VertexDeclarationRHI;
+        GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VSShader->GetVertexShader();
+    }
+    else
+    {
+        VSShader = *TShaderMapRef<TRULShaderDrawGeometryVS<0>>(GetGlobalShaderMap(FeatureLevel));
+        GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector3();
+        GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VSShader->GetVertexShader();
+    }
 
     // Render pass
 
-    FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
+    FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig), TextureRSV);
     RHICmdList.BeginRenderPass(RPInfo, TEXT("DrawGeometry"));
     {
         // Set graphics pipeline
@@ -684,7 +914,7 @@ void URULShaderLibrary::DrawGeometry_RT(
 
         // Draw primitives
 
-        FRULRHIUtilityLibrary::DrawTriangleList(RHICmdList, Vertices, Indices);
+        FRULRHIUtilityLibrary::DrawTriangleList(RHICmdList, Vertices, Indices, Colors);
 
         VSShader->UnbindBuffers(RHICmdList);
     }
@@ -811,7 +1041,7 @@ void URULShaderLibrary::ApplyMaterial_RT(
     TShaderMapRef<FRULShaderDrawScreenVS> VSShader(GetGlobalShaderMap(FeatureLevel));
 
 	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
-	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<FRULShaderDrawScreenMS<0>>();
+	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<TRULShaderDrawScreenMS<0>>();
 
     FGraphicsPipelineStateInitializer GraphicsPSOInit;
     SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleStrip, DrawConfig);
@@ -1043,7 +1273,7 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
     TShaderMapRef<FRULShaderDrawScreenVS> VSShader(GetGlobalShaderMap(FeatureLevel));
 
 	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
-	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<FRULShaderDrawScreenMS<0>>();
+	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<TRULShaderDrawScreenMS<0>>();
 
     FGraphicsPipelineStateInitializer GraphicsPSOInit;
     SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleStrip, DrawConfig);
@@ -1289,7 +1519,7 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
     TShaderMapRef<FRULShaderDrawQuadVS> VSShader(GetGlobalShaderMap(FeatureLevel));
 
 	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
-	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<FRULShaderDrawScreenMS<1>>();
+	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<TRULShaderDrawScreenMS<1>>();
 
     FGraphicsPipelineStateInitializer GraphicsPSOInit;
     SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleStrip, DrawConfig);
@@ -1495,7 +1725,7 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
     TShaderMapRef<FRULShaderDrawPolyVS> VSShader(GetGlobalShaderMap(FeatureLevel));
 
 	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
-	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<FRULShaderDrawScreenMS<1>>();
+	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<TRULShaderDrawScreenMS<1>>();
 
     FGraphicsPipelineStateInitializer GraphicsPSOInit;
     SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleList, DrawConfig);

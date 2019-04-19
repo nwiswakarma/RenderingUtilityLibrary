@@ -23,35 +23,43 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawGeometry.h"
+#include "Shaders/RULShaderLibrary.h"
+#include "Shaders/Graph/RULShaderGraph.h"
+
+void URULShaderGraphTask_DrawGeometry::Execute(URULShaderGraph* Graph)
 {
-    public class RenderingUtilityLibrary : ModuleRules
+    check(IsValid(Graph));
+
+    if (HasValidOutputRT())
     {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
+        FRULShaderOutputConfig OutputConfig;
+        GetResolvedOutputConfig(*Graph, OutputConfig);
+
+        if (Vertices.Num() == Colors.Num())
         {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
-
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
-
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
+            URULShaderLibrary::DrawGeometryColors(
+                Graph->GetGraphManager(),
+                Output.RenderTarget,
+                TaskConfig.DrawConfig,
+                OutputConfig.GetDimension(),
+                Vertices,
+                Colors,
+                Indices
+                );
+        }
+        else
+        {
+            URULShaderLibrary::DrawGeometry(
+                Graph->GetGraphManager(),
+                Output.RenderTarget,
+                TaskConfig.DrawConfig,
+                OutputConfig.GetDimension(),
+                Vertices,
+                Indices
+                );
         }
     }
 }

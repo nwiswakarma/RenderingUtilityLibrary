@@ -35,6 +35,7 @@
 #include "RULShaderLibrary.generated.h"
 
 class FGraphicsPipelineStateInitializer;
+class UTexture2D;
 class FTextureRenderTarget2DResource;
 class UMaterialInterface;
 class FMaterialRenderProxy;
@@ -110,6 +111,14 @@ class RENDERINGUTILITYLIBRARY_API URULShaderLibrary : public UBlueprintFunctionL
 public:
 
     UFUNCTION(BlueprintCallable)
+    static void CopyToResolveTarget(
+        UObject* WorldContextObject,
+        FRULShaderTextureParameterInput SourceTexture,
+        UTextureRenderTarget2D* RenderTarget,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
     static void DrawPoints(
         UObject* WorldContextObject,
         UTextureRenderTarget2D* RenderTarget,
@@ -131,6 +140,18 @@ public:
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
+    UFUNCTION(BlueprintCallable)
+    static void DrawGeometryColors(
+        UObject* WorldContextObject,
+        UTextureRenderTarget2D* RenderTarget,
+        FRULShaderDrawConfig DrawConfig,
+        FIntPoint DrawSize,
+        const TArray<FVector>& Vertices,
+        const TArray<FColor>& Colors,
+        const TArray<int32>& Indices,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
     // Draw indexed primitive to a render target
     // with vertex color stored in vertex Z component
     static void DrawGeometry_RT(
@@ -140,7 +161,8 @@ public:
         FRULShaderDrawConfig DrawConfig,
         FIntPoint DrawSize,
         const TArray<FVector>& Vertices,
-        const TArray<int32>& Indices
+        const TArray<int32>& Indices,
+        const TArray<FColor>* Colors = nullptr
         );
 
     UFUNCTION(BlueprintCallable)

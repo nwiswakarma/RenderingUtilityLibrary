@@ -23,35 +23,12 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
 
-namespace UnrealBuildTool.Rules
+#include "Shaders/RULShaderMaterialLibrary.h"
+
+UMaterialInterface* URULShaderMaterialLibrary::GetMaterial(FName MaterialName) const
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
-
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
-
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
+    auto* MaterialPtr = MaterialMap.Find(MaterialName);
+    return MaterialPtr ? *MaterialPtr : nullptr;
 }

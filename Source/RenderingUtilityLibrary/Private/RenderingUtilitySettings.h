@@ -23,35 +23,24 @@
 // THE SOFTWARE.
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
+// 
+ 
+#pragma once
+ 
+#include "CoreMinimal.h"
+#include "RenderingUtilitySettings.generated.h"
 
-namespace UnrealBuildTool.Rules
+class URULShaderMaterialLibrary;
+ 
+UCLASS(Config=Engine, DefaultConfig)
+class RENDERINGUTILITYLIBRARY_API URenderingUtilitySettings : public UObject
 {
-    public class RenderingUtilityLibrary : ModuleRules
-    {
-        public RenderingUtilityLibrary(ReadOnlyTargetRules Target) : base(Target)
-        {
-            PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    GENERATED_BODY()
+ 
+public:
 
-            PrivateIncludePaths.AddRange(
-                new string[] {
-                } );
+	UPROPERTY(Config, EditDefaultsOnly, Category="Shaders")
+    TSubclassOf<class URULShaderMaterialLibrary> MaterialLibraryType;
 
-            PublicDependencyModuleNames.AddRange(
-                new string[] {
-                    "Core",
-                    "CoreUObject",
-                    "Engine",
-                    "RHI",
-                    "RenderCore",
-                    "Renderer"
-                } );
-
-            PrivateDependencyModuleNames.AddRange(
-                new string[] {
-                    "Projects",
-                    "GenericWorkerThread"
-                } );
-        }
-    }
-}
+    static const URULShaderMaterialLibrary* GetMaterialLibrary();
+};
