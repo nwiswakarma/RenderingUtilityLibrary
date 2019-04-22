@@ -25,6 +25,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 
+using System.IO;
+
 namespace UnrealBuildTool.Rules
 {
     public class RenderingUtilityLibrary : ModuleRules
@@ -33,8 +35,11 @@ namespace UnrealBuildTool.Rules
         {
             PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+            string EnginePath = Path.GetFullPath(Target.RelativeEnginePath);
+
             PrivateIncludePaths.AddRange(
                 new string[] {
+                    Path.Combine(EnginePath, "Source/Runtime/Engine/Private/")
                 } );
 
             PublicDependencyModuleNames.AddRange(

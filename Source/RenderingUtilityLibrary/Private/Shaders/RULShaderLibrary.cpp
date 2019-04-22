@@ -28,6 +28,7 @@
 #include "Shaders/RULShaderLibrary.h"
 
 #include "CanvasTypes.h"
+#include "Materials/MaterialInstanceSupport.h"
 #include "UniformBuffer.h"
 #include "RHICommandList.h"
 #include "RHIStaticStates.h"
@@ -375,6 +376,48 @@ TSharedRef<FSceneView> URULShaderLibrary::CreateDefaultRTView(
     return MoveTemp(ViewRef);
 }
 
+void URULShaderLibrary::BindMaterialInstanceParameterCollection(
+    FMaterialInstanceResource& MaterialInstanceResource,
+    const FRULShaderMaterialParameterCollection& ParameterCollection
+    )
+{
+    for (const FRULShaderScalarParameter& Parameter : ParameterCollection.ScalarParameters)
+    {
+        FMaterialParameterInfo ParameterInfo(Parameter.ParameterName);
+        MaterialInstanceResource.RenderThread_UpdateParameter(ParameterInfo, Parameter.ParameterValue);
+    }
+
+    for (const FRULShaderVectorParameter& Parameter : ParameterCollection.VectorParameters)
+    {
+        FMaterialParameterInfo ParameterInfo(Parameter.ParameterName);
+        MaterialInstanceResource.RenderThread_UpdateParameter(ParameterInfo, Parameter.ParameterValue);
+    }
+
+    for (const FRULShaderTextureParameter& Parameter : ParameterCollection.TextureParameters)
+    {
+        const UTexture* TextureValue(Parameter.ParameterValue);
+        FMaterialParameterInfo ParameterInfo(Parameter.ParameterName);
+        MaterialInstanceResource.RenderThread_UpdateParameter(ParameterInfo, TextureValue);
+    }
+}
+
+void URULShaderLibrary::ResolveMaterialInstanceTextureParameter(
+    FMaterialInstanceResource& MaterialInstanceResource,
+    const FRULShaderMaterialParameterCollection& ParameterCollection,
+    FName ResolveName,
+    const UTexture* ResolveTexture
+    )
+{
+    for (const FRULShaderNameResolveParameter& Parameter : ParameterCollection.NamedTextures)
+    {
+        if (Parameter.ParameterValue == ResolveName)
+        {
+            FMaterialParameterInfo ParameterInfo(Parameter.ParameterName);
+            MaterialInstanceResource.RenderThread_UpdateParameter(ParameterInfo, ResolveTexture);
+        }
+    }
+}
+
 void URULShaderLibrary::AssignBlendState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, ERULShaderDrawBlendType BlendType)
 {
     switch (BlendType)
@@ -405,7 +448,7 @@ void URULShaderLibrary::AssignBlendState(FGraphicsPipelineStateInitializer& Grap
     }
 }
 
-void URULShaderLibrary::SetupDefaultMaterialParameters(
+void URULShaderLibrary::SetupMaterialParameters(
     FRHICommandListImmediate& RHICmdList,
     ERHIFeatureLevel::Type FeatureLevel,
     FShader* VertexShader,
@@ -1061,7 +1104,7 @@ void URULShaderLibrary::ApplyMaterial_RT(
 
         // Bind shader parameters
 
-        SetupDefaultMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
+        SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
 
         // Draw primitives
 
@@ -1293,7 +1336,7 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
 
         // Bind shader parameters
 
-        SetupDefaultMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
+        SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
         PSShader->BindTexture(RHICmdList, TEXT("SourceMap"), TEXT("SourceMapSampler"), SourceTexture, TextureSampler);
 
         // Draw primitives
@@ -1325,6 +1368,310 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
                 PSShader->BindTexture(RHICmdList, TEXT("SourceMap"), TEXT("SourceMapSampler"), TextureRTV0, TextureSampler);
                 // Draw primitives
                 RHICmdList.DrawPrimitive(0, 2, 1);
+                // Unbind shader parameters
+                PSShader->UnbindBuffers(RHICmdList);
+            }
+            RHICmdList.EndRenderPass();
+
+            // Swap RTTs
+            Swap(TextureRTV0, TextureRTV1);
+        }
+
+        // Unbind vertex shader parameters
+        VSShader->UnbindBuffers(RHICmdList);
+
+        // Make sure TextureRTV has the last drawn render target
+        if (TextureRTV0 != TextureRTV)
+        {
+            RHICmdList.CopyToResolveTarget(
+                TextureRTV0,
+                TextureRSV,
+                FResolveParams()
+                );
+        }
+    }
+}
+
+void URULShaderLibrary::ApplyMultiParametersMaterial(
+    UObject* WorldContextObject,
+    UMaterialInstanceDynamic* Material,
+    const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
+    FRULShaderDrawConfig DrawConfig,
+    UTextureRenderTarget2D* RenderTarget,
+    UTextureRenderTarget2D* SwapTarget,
+    int32 ParameterCollectionStartIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
+
+    // Empty parameter collection, abort without warning
+    if (ParameterCollections.Num() < 1)
+    {
+        return;
+    }
+
+    if (! IsValid(World))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        return;
+    }
+
+    if (! World->Scene)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() ABORTED, INVALID WORLD SCENE"));
+        return;
+    }
+
+    if (! IsValid(Material))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() ABORTED, INVALID MATERIAL"));
+        return;
+    }
+
+    if (! IsValid(RenderTarget))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() ABORTED, INVALID RENDER TARGET"));
+        return;
+    }
+
+    RenderTargetResource = static_cast<FTextureRenderTarget2DResource*>(RenderTarget->GameThread_GetRenderTargetResource());
+
+    if (! RenderTargetResource)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        return;
+    }
+
+    // Get swap render target resource if present
+
+    FTextureRenderTarget2DResource* SwapTargetResource = nullptr;
+
+    if (IsValid(SwapTarget))
+    {
+        if (IsValidSwapTarget(RenderTarget, SwapTarget))
+        {
+            SwapTargetResource = static_cast<FTextureRenderTarget2DResource*>(SwapTarget->GameThread_GetRenderTargetResource());
+        }
+        else
+        {
+            UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyMultiParametersMaterial() INVALID SWAP RENDER TARGET DIMENSION / FORMAT"));
+        }
+    }
+
+    World->SendAllEndOfFrameUpdates();
+
+    struct FRenderParameter
+    {
+        ERHIFeatureLevel::Type FeatureLevel;
+        FRULShaderDrawConfig DrawConfig;
+        FTextureRenderTarget2DResource* RenderTargetResource;
+        FTextureRenderTarget2DResource* SwapTargetResource;
+        FMaterialInstanceResource* MaterialInstanceResource;
+        TArray<FRULShaderMaterialParameterCollection> ParameterCollections;
+        TArray<UTexture*> ResolveTextures;
+        int32 ParameterCollectionStartIndex;
+        UGWTTickEvent* CallbackEvent;
+    };
+
+    FRenderParameter RenderParameter = {
+        World->Scene->GetFeatureLevel(),
+        DrawConfig,
+        RenderTargetResource,
+        SwapTargetResource,
+        Material->Resource,
+        ParameterCollections,
+        { RenderTarget, SwapTarget },
+        ParameterCollectionStartIndex,
+        CallbackEvent
+        };
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_ApplyMultiParametersMaterial)(
+        [RenderParameter](FRHICommandListImmediate& RHICmdList)
+        {
+            URULShaderLibrary::ApplyMultiParametersMaterial_RT(
+                RHICmdList,
+                RenderParameter.FeatureLevel,
+                RenderParameter.DrawConfig,
+                RenderParameter.RenderTargetResource,
+                RenderParameter.SwapTargetResource,
+                RenderParameter.MaterialInstanceResource,
+                RenderParameter.ParameterCollections,
+                RenderParameter.ResolveTextures,
+                RenderParameter.ParameterCollectionStartIndex
+                );
+            FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
+        }
+    );
+}
+
+void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
+    FRHICommandListImmediate& RHICmdList,
+    ERHIFeatureLevel::Type FeatureLevel,
+    FRULShaderDrawConfig DrawConfig,
+    FTextureRenderTarget2DResource* RenderTargetResource,
+    FTextureRenderTarget2DResource* SwapTargetResource,
+    FMaterialInstanceResource* MIResource,
+    const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
+    const TArray<UTexture*>& ResolveTextures,
+    int32 ParameterCollectionStartIndex
+    )
+{
+    check(IsInRenderingThread());
+    check(MIResource != nullptr);
+    check(ParameterCollections.Num() > 0);
+
+    const FMaterial* MaterialResource = MIResource->GetMaterial(FeatureLevel);
+
+    if (! RenderTargetResource || ! MaterialResource)
+    {
+        return;
+    }
+
+    FTexture2DRHIRef SwapTextureRTV;
+    FTexture2DRHIRef SwapTextureRSV;
+    FTexture2DRHIRef TargetTexture = RenderTargetResource->GetRenderTargetTexture();
+
+    if (! TargetTexture.IsValid())
+    {
+        return;
+    }
+
+    const int32 DrawCount = ParameterCollections.Num() + ParameterCollectionStartIndex;
+    const bool bIsMultiPass = DrawCount > 1;
+
+    // Prepare swap texture for multi-pass filter
+    if (bIsMultiPass)
+    {
+        // Get render resource texture if swap texture is supplied
+        if (SwapTargetResource)
+        {
+            if (IsValidSwapTarget_RT(TargetTexture, SwapTargetResource->GetRenderTargetTexture()))
+            {
+                SwapTextureRTV = SwapTargetResource->GetRenderTargetTexture();
+            }
+            else
+            {
+                UE_LOG(LogRUL,Warning, TEXT("SUPPLIED SWAP RENDER TARGET IS NOT SWAP CAPABLE (RT)"));
+                FDebug::DumpStackTraceToLog();
+            }
+        }
+
+        // Create new swap texture if no swap texture is supplied
+        if (! SwapTextureRTV.IsValid())
+        {
+            const uint32 FlagsMask = ~(TexCreate_RenderTargetable | TexCreate_ResolveTargetable | TexCreate_ShaderResource);
+            FRHIResourceCreateInfo CreateInfo(TargetTexture->GetClearBinding());
+            RHICreateTargetableShaderResource2D(
+                TargetTexture->GetSizeX(),
+                TargetTexture->GetSizeY(),
+                TargetTexture->GetFormat(),
+                1,
+                TargetTexture->GetFlags() & FlagsMask,
+                TexCreate_RenderTargetable,
+                false,
+                CreateInfo,
+                SwapTextureRTV,
+                SwapTextureRSV,
+                TargetTexture->GetNumSamples()
+                );
+        }
+    }
+
+    // Prepare render target texture and resolve target
+    FTextureRHIParamRef TextureRTV = TargetTexture;
+    FTextureRHIParamRef TextureRSV = RenderTargetResource->TextureRHI;
+    FSamplerStateRHIParamRef TextureSampler = TStaticSamplerState<SF_Bilinear,AM_Clamp,AM_Clamp,AM_Clamp>::GetRHI();
+
+	// Create default render target view
+
+	FIntRect ViewRect;
+    TSharedRef<FSceneView> View(CreateDefaultRTView(RHICmdList, RenderTargetResource, ViewRect));
+
+    // Setup viewport
+
+    RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+    // Prepare graphics pipelane
+
+    TShaderMapRef<FRULShaderDrawScreenVS> VSShader(GetGlobalShaderMap(FeatureLevel));
+
+	const FMaterialShaderMap* MaterialShaderMap = MaterialResource->GetRenderingThreadShaderMap();
+	FRULBaseMaterialShader* PSShader = MaterialShaderMap->GetShader<TRULShaderDrawScreenMS<0>>();
+
+    FGraphicsPipelineStateInitializer GraphicsPSOInit;
+    SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleStrip, DrawConfig);
+    GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+    GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GETSAFERHISHADER_VERTEX(*VSShader);
+    GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PSShader->GetPixelShader();
+
+    // Render pass
+
+    FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("ApplyMultiParametersMaterial"));
+    {
+        // Set graphics pipeline
+
+        RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+        SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
+
+        // Bind shader parameters
+
+        if (ParameterCollectionStartIndex <= 0)
+        {
+            BindMaterialInstanceParameterCollection(*MIResource, ParameterCollections[0]);
+            MIResource->CacheUniformExpressions_GameThread(false);
+        }
+
+        SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MIResource, *View);
+
+        // Draw primitives
+
+        RHICmdList.SetStreamSource(0, GetFilterShaderVB(), 0);
+        RHICmdList.DrawPrimitive(0, 2, 1);
+
+        // Unbind shader parameters
+        PSShader->UnbindBuffers(RHICmdList);
+    }
+    RHICmdList.EndRenderPass();
+
+    // Draw multi-pass if required
+    if (bIsMultiPass)
+    {
+        FTextureRHIParamRef TextureRTV0 = TextureRTV;
+        FTextureRHIParamRef TextureRTV1 = SwapTextureRTV;
+
+        check(TextureRTV0 != nullptr);
+        check(TextureRTV1 != nullptr);
+
+        for (int32 i=1; i<DrawCount; ++i)
+        {
+            // Render pass
+            FRHIRenderPassInfo SwapRPInfo(TextureRTV1, ERenderTargetActions::Load_Store);
+            RHICmdList.BeginRenderPass(SwapRPInfo, TEXT("ApplyMultiParametersMaterial"));
+            {
+                // Bind shader parameters
+
+                if (i >= ParameterCollectionStartIndex)
+                {
+                    // Bind parameters
+                    int32 ParamId = i - ParameterCollectionStartIndex;
+                    const FRULShaderMaterialParameterCollection& Parameters(ParameterCollections[ParamId]);
+                    BindMaterialInstanceParameterCollection(*MIResource, Parameters);
+
+                    // Resolve named textures
+                    int32 ResolveTextureId = (TextureRTV0 == TargetTexture) ? 0 : 1;
+                    UTexture* ResolveTexture = ResolveTextures[ResolveTextureId];
+                    ResolveMaterialInstanceTextureParameter(*MIResource, Parameters, TEXT("__SWAP_TEXTURE__"), ResolveTexture);
+
+                    MIResource->CacheUniformExpressions_GameThread(false);
+                    SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MIResource, *View);
+                }
+
+                // Draw primitives
+                RHICmdList.DrawPrimitive(0, 2, 1);
+
                 // Unbind shader parameters
                 PSShader->UnbindBuffers(RHICmdList);
             }
@@ -1539,7 +1886,7 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
 
         // Bind shader parameters
 
-        SetupDefaultMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
+        SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
 
         VSShader->BindSRV(RHICmdList, TEXT("QuadGeomData"), QuadGeomData.SRV);
         VSShader->BindSRV(RHICmdList, TEXT("QuadTransformData"), QuadTransformData.SRV);
@@ -1745,7 +2092,7 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
 
         // Bind shader parameters
 
-        SetupDefaultMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
+        SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MaterialRenderProxy, *View);
 
         // Draw primitives
 

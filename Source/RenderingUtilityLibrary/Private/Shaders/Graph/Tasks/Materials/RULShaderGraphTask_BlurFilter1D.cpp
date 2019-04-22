@@ -31,29 +31,33 @@
 
 void URULShaderGraphTask_BlurFilter1D::ExecuteMaterialFunction(URULShaderGraph& Graph, UMaterialInstanceDynamic& MID)
 {
+    check(Graph.HasGraphManager());
+
     ApplyMaterialParameters(MID);
 
-    // X-Axis Blur
+    FRULShaderOutputConfig ResolvedOutputConfig;
+    GetResolvedOutputConfig(Graph, ResolvedOutputConfig);
 
-    SetScalarParameterValue(DirectionXParameterName, 1.f);
-    SetScalarParameterValue(DirectionYParameterName, 0.f);
+    FRULShaderGraphOutputRT SwapRT;
+    Graph.GetGraphManager()->FindFreeOutputRT(ResolvedOutputConfig, SwapRT);
 
-    URULShaderLibrary::ApplyMaterial(
+    // Setup parameters multi parameters
+
+    TArray<FRULShaderMaterialParameterCollection> ParameterCollections;
+
+    FRULShaderMaterialParameterCollection Pass1;
+    Pass1.ScalarParameters.Emplace(DirectionXParameterName, 0.f);
+    Pass1.ScalarParameters.Emplace(DirectionYParameterName, 1.f);
+    Pass1.NamedTextures.Emplace(SourceTextureParameterName, TEXT("__SWAP_TEXTURE__"));
+    ParameterCollections.Emplace(Pass1);
+
+    URULShaderLibrary::ApplyMultiParametersMaterial(
         Graph.GetGraphManager(),
         &MID,
+        ParameterCollections,
+        TaskConfig.DrawConfig,
         Output.RenderTarget,
-        TaskConfig.DrawConfig
-        );
-
-    // Y-Axis Blur
-
-    SetScalarParameterValue(DirectionXParameterName, 0.f);
-    SetScalarParameterValue(DirectionYParameterName, 1.f);
-
-    URULShaderLibrary::ApplyMaterial(
-        Graph.GetGraphManager(),
-        &MID,
-        Output.RenderTarget,
-        TaskConfig.DrawConfig
+        SwapRT.RenderTarget,
+        1
         );
 }

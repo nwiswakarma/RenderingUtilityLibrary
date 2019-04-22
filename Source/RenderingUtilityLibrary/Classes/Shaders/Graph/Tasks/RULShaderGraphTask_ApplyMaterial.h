@@ -28,6 +28,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Shaders/RULShaderParameters.h"
 #include "Shaders/Graph/RULShaderGraphTask.h"
 #include "Shaders/Graph/RULShaderGraphTypes.h"
 #include "RULShaderGraphTask_ApplyMaterial.generated.h"
@@ -60,7 +61,7 @@ public:
     TMap<FName, FLinearColor> VectorInputMap;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<FName, FRULShaderGraphTaskTextureInput> TextureInputMap;
+    TMap<FName, FRULShaderGraphTextureInput> TextureInputMap;
 
     virtual void Initialize(URULShaderGraph* Graph) override;
     virtual void Execute(URULShaderGraph* Graph) override;
@@ -72,37 +73,37 @@ public:
     void SetVectorParameterValue(FName ParameterName, FLinearColor ParameterValue);
 
     UFUNCTION(BlueprintCallable)
-    void SetTextureParameterValue(FName ParameterName, FRULShaderGraphTaskTextureInput ParameterValue);
+    void SetTextureParameterValue(FName ParameterName, FRULShaderGraphTextureInput ParameterValue);
 
     UFUNCTION(BlueprintCallable)
-    void SetScalarParameter(const FRULShaderGraphMaterialScalarParameter& Parameter);
+    void SetScalarParameter(const FRULShaderScalarParameter& Parameter);
 
     UFUNCTION(BlueprintCallable)
-    void SetVectorParameter(const FRULShaderGraphMaterialVectorParameter& Parameter);
+    void SetVectorParameter(const FRULShaderVectorParameter& Parameter);
 
     UFUNCTION(BlueprintCallable)
-    void SetTextureParameter(const FRULShaderGraphMaterialTextureParameter& Parameter);
+    void SetTextureParameter(const FRULShaderGraphTextureParameter& Parameter);
 
     void SetParameters(
-        const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-        const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-        const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+        const TArray<FRULShaderScalarParameter>& ScalarParameters,
+        const TArray<FRULShaderVectorParameter>& VectorParameters,
+        const TArray<FRULShaderGraphTextureParameter>& TextureParameters
         );
 
     void SetParameters(
         const FRULShaderGraphParameterNameMap& ParameterNameMap,
-        const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-        const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-        const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+        const TArray<FRULShaderScalarParameter>& ScalarParameters,
+        const TArray<FRULShaderVectorParameter>& VectorParameters,
+        const TArray<FRULShaderGraphTextureParameter>& TextureParameters
         );
 
     void SetParameters(
         URULShaderGraph& Graph,
         FName ParameterCategoryName,
         FName ParameterCategoryDefaultName,
-        const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-        const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-        const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+        const TArray<FRULShaderScalarParameter>& ScalarParameters,
+        const TArray<FRULShaderVectorParameter>& VectorParameters,
+        const TArray<FRULShaderGraphTextureParameter>& TextureParameters
         );
 
     void ResolveTaskInputMap();

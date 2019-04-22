@@ -97,7 +97,7 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphOutputRT
 };
 
 USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphTaskTextureInput
+struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphTextureInput
 {
     GENERATED_BODY()
 
@@ -121,7 +121,7 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialRef
 };
 
 USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialScalarParameter
+struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphTextureParameter
 {
     GENERATED_BODY()
 
@@ -129,48 +129,10 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialScalarParameter
     FName ParameterName;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float ParameterValue;
+    FRULShaderGraphTextureInput ParameterValue;
 
-    FRULShaderGraphMaterialScalarParameter() = default;
-    FRULShaderGraphMaterialScalarParameter(FName InParameterName, float InParameterValue)
-        : ParameterName(InParameterName)
-        , ParameterValue(InParameterValue)
-    {
-    }
-};
-
-USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialVectorParameter
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FName ParameterName;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FLinearColor ParameterValue;
-
-    FRULShaderGraphMaterialVectorParameter() = default;
-    FRULShaderGraphMaterialVectorParameter(FName InParameterName, const FLinearColor& InParameterValue)
-        : ParameterName(InParameterName)
-        , ParameterValue(InParameterValue)
-    {
-    }
-};
-
-USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialTextureParameter
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FName ParameterName;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FRULShaderGraphTaskTextureInput ParameterValue;
-
-    FRULShaderGraphMaterialTextureParameter() = default;
-    FRULShaderGraphMaterialTextureParameter(FName InParameterName, const FRULShaderGraphTaskTextureInput& InParameterValue)
+    FRULShaderGraphTextureParameter() = default;
+    FRULShaderGraphTextureParameter(FName InParameterName, const FRULShaderGraphTextureInput& InParameterValue)
         : ParameterName(InParameterName)
         , ParameterValue(InParameterValue)
     {

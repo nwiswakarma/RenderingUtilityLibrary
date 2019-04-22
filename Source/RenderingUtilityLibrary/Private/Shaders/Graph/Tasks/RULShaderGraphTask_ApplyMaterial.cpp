@@ -38,7 +38,7 @@ void URULShaderGraphTask_ApplyMaterial::Initialize(URULShaderGraph* Graph)
     for (const auto& InputPair : TextureInputMap)
     {
         const FName& InputKey(InputPair.Key);
-        const FRULShaderGraphTaskTextureInput& InputValue(InputPair.Value);
+        const FRULShaderGraphTextureInput& InputValue(InputPair.Value);
 
         UTexture* Texture(InputValue.Texture);
         URULShaderGraphTask* Task(InputValue.Task);
@@ -104,30 +104,30 @@ void URULShaderGraphTask_ApplyMaterial::SetVectorParameterValue(FName ParameterN
     VectorInputMap.Emplace(ParameterName, ParameterValue);
 }
 
-void URULShaderGraphTask_ApplyMaterial::SetTextureParameterValue(FName ParameterName, FRULShaderGraphTaskTextureInput ParameterValue)
+void URULShaderGraphTask_ApplyMaterial::SetTextureParameterValue(FName ParameterName, FRULShaderGraphTextureInput ParameterValue)
 {
     TextureInputMap.Emplace(ParameterName, ParameterValue);
 }
 
-void URULShaderGraphTask_ApplyMaterial::SetScalarParameter(const FRULShaderGraphMaterialScalarParameter& Parameter)
+void URULShaderGraphTask_ApplyMaterial::SetScalarParameter(const FRULShaderScalarParameter& Parameter)
 {
     ScalarInputMap.Emplace(Parameter.ParameterName, Parameter.ParameterValue);
 }
 
-void URULShaderGraphTask_ApplyMaterial::SetVectorParameter(const FRULShaderGraphMaterialVectorParameter& Parameter)
+void URULShaderGraphTask_ApplyMaterial::SetVectorParameter(const FRULShaderVectorParameter& Parameter)
 {
     VectorInputMap.Emplace(Parameter.ParameterName, Parameter.ParameterValue);
 }
 
-void URULShaderGraphTask_ApplyMaterial::SetTextureParameter(const FRULShaderGraphMaterialTextureParameter& Parameter)
+void URULShaderGraphTask_ApplyMaterial::SetTextureParameter(const FRULShaderGraphTextureParameter& Parameter)
 {
     TextureInputMap.Emplace(Parameter.ParameterName, Parameter.ParameterValue);
 }
 
 void URULShaderGraphTask_ApplyMaterial::SetParameters(
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters
     )
 {
     for (const auto& ScalarParameter : ScalarParameters)
@@ -148,9 +148,9 @@ void URULShaderGraphTask_ApplyMaterial::SetParameters(
 
 void URULShaderGraphTask_ApplyMaterial::SetParameters(
     const FRULShaderGraphParameterNameMap& ParameterNameMap,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters
     )
 {
     for (const auto& Param : ScalarParameters)
@@ -185,9 +185,9 @@ void URULShaderGraphTask_ApplyMaterial::SetParameters(
     URULShaderGraph& Graph,
     FName ParameterCategoryName,
     FName ParameterCategoryDefaultName,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters
     )
 {
     if (! ParameterCategoryName.IsValid())

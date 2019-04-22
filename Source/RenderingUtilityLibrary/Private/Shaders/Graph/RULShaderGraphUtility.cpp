@@ -212,9 +212,9 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphUtility::AddApplyMaterialTaskW
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters
     )
 {
     URULShaderGraphTask_ApplyMaterial* Task;
@@ -298,6 +298,51 @@ URULShaderGraphTask_DrawMaterialPoly* URULShaderGraphUtility::AddDrawMaterialPol
             Task->Polys = Polys;
             AddTask(*Graph, *Task, TaskConfig, ConfigMethod, OutputTask);
         }
+    }
+
+    return Task;
+}
+
+URULShaderGraphTask_DrawMaterialQuad* URULShaderGraphUtility::AddDrawTextureQuadTask(
+    URULShaderGraph* Graph,
+    TSubclassOf<URULShaderGraphTask_DrawMaterialQuad> TaskType,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+    URULShaderGraphTask* OutputTask,
+    const FRULShaderGraphMaterialRef& MaterialRef,
+    const TArray<FRULShaderQuadGeometry>& Quads,
+    FName ParameterCategoryName,
+    FRULShaderGraphTextureInput SourceTexture,
+    float Opacity
+    )
+{
+    URULShaderGraphTask_DrawMaterialQuad* Task;
+    Task = AddDrawMaterialQuadTask(
+        Graph,
+        TaskType,
+        TaskConfig,
+        ConfigMethod,
+        OutputTask,
+        MaterialRef,
+        Quads
+        );
+
+    if (IsValid(Task))
+    {
+        TArray<FScalarParam>  MappedScalars;
+        TArray<FTextureParam> MappedTextures;
+
+        MappedScalars.Emplace(TEXT("Opacity"), Opacity);
+        MappedTextures.Emplace(TEXT("SourceTexture"), SourceTexture);
+
+        Task->SetParameters(
+            *Graph,
+            ParameterCategoryName,
+            TEXT("DrawTextureQuad"),
+            MappedScalars,
+            { },
+            MappedTextures
+            );
     }
 
     return Task;

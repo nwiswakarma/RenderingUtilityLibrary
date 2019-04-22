@@ -99,8 +99,6 @@ void URULShaderGraph::AssignOutput(URULShaderGraphTask& Task)
 {
     check(HasGraphManager());
 
-    bool bNewOutputRTRequired = true;
-
     // Assign output from free output
     if (! Task.HasValidOutput())
     {

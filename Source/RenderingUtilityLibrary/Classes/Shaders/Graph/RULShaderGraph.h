@@ -99,7 +99,8 @@ public:
     FORCEINLINE FName GetParameterNameFromCategory(
         FName ParameterCategoryName,
         FName ParameterCategoryDefaultName,
-        FName ParameterMappedName
+        FName ParameterNameKey,
+        bool bUseParameterNameKeyAsDefault = true
         ) const
     {
         if (! ParameterCategoryName.IsValid())
@@ -108,10 +109,13 @@ public:
         }
 
         const FRULShaderGraphParameterNameMap* ParameterCategory = GetParameterNameMap(ParameterCategoryName);
+        const FName DefaultName = bUseParameterNameKeyAsDefault
+            ? ParameterNameKey
+            : FName();
 
         return ParameterCategory
-            ? ParameterCategory->GetOrDefault(ParameterMappedName)
-            : FName();
+            ? ParameterCategory->GetOrDefault(ParameterNameKey)
+            : DefaultName;
     }
 
     UMaterialInstanceDynamic* GetCachedMID(UMaterialInterface* BaseMaterial, bool bClearParameterValues = false);

@@ -39,6 +39,7 @@ class UTexture2D;
 class FTextureRenderTarget2DResource;
 class UMaterialInterface;
 class FMaterialRenderProxy;
+class FMaterialInstanceResource;
 class FMaterialShader;
 class FSceneView;
 class UGWTTickEvent;
@@ -93,7 +94,7 @@ class RENDERINGUTILITYLIBRARY_API URULShaderLibrary : public UBlueprintFunctionL
         const FRULShaderDrawConfig& DrawConfig
         );
 
-    static void SetupDefaultMaterialParameters(
+    static void SetupMaterialParameters(
         FRHICommandListImmediate& RHICmdList,
         ERHIFeatureLevel::Type FeatureLevel,
         FShader* VertexShader,
@@ -108,9 +109,21 @@ class RENDERINGUTILITYLIBRARY_API URULShaderLibrary : public UBlueprintFunctionL
         FIntRect& ViewRect
         );
 
+    static void BindMaterialInstanceParameterCollection(
+        FMaterialInstanceResource& MaterialInstanceResource,
+        const FRULShaderMaterialParameterCollection& ParameterCollection
+        );
+
+    static void ResolveMaterialInstanceTextureParameter(
+        FMaterialInstanceResource& MaterialInstanceResource,
+        const FRULShaderMaterialParameterCollection& ParameterCollection,
+        FName ResolveName,
+        const UTexture* ResolveTexture
+        );
+
 public:
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void CopyToResolveTarget(
         UObject* WorldContextObject,
         FRULShaderTextureParameterInput SourceTexture,
@@ -118,7 +131,7 @@ public:
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawPoints(
         UObject* WorldContextObject,
         UTextureRenderTarget2D* RenderTarget,
@@ -129,7 +142,7 @@ public:
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawGeometry(
         UObject* WorldContextObject,
         UTextureRenderTarget2D* RenderTarget,
@@ -140,7 +153,7 @@ public:
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawGeometryColors(
         UObject* WorldContextObject,
         UTextureRenderTarget2D* RenderTarget,
@@ -165,7 +178,7 @@ public:
         const TArray<FColor>* Colors = nullptr
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void ApplyMaterial(
         UObject* WorldContextObject,
         UMaterialInterface* Material,
@@ -182,7 +195,7 @@ public:
         FRULShaderDrawConfig DrawConfig
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void ApplyMaterialFilter(
         UObject* WorldContextObject,
         UMaterialInterface* Material,
@@ -205,7 +218,31 @@ public:
         const FMaterialRenderProxy* MaterialRenderProxy
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
+    static void ApplyMultiParametersMaterial(
+        UObject* WorldContextObject,
+        UMaterialInstanceDynamic* Material,
+        const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
+        FRULShaderDrawConfig DrawConfig,
+        UTextureRenderTarget2D* RenderTarget,
+        UTextureRenderTarget2D* SwapTarget = nullptr,
+        int32 ParameterCollectionStartIndex = 0,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    static void ApplyMultiParametersMaterial_RT(
+        FRHICommandListImmediate& RHICmdList,
+        ERHIFeatureLevel::Type FeatureLevel,
+        FRULShaderDrawConfig DrawConfig,
+        FTextureRenderTarget2DResource* RenderTargetResource,
+        FTextureRenderTarget2DResource* SwapTargetResource,
+        FMaterialInstanceResource* MIResource,
+        const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
+        const TArray<UTexture*>& ResolveTextures,
+        int32 ParameterCollectionStartIndex
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawMaterialQuad(
         UObject* WorldContextObject,
         const TArray<FRULShaderQuadGeometry>& Quads,
@@ -224,7 +261,7 @@ public:
         FRULShaderDrawConfig DrawConfig
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawMaterialPoly(
         UObject* WorldContextObject,
         const TArray<FRULShaderPolyGeometry>& Polys,
@@ -244,7 +281,7 @@ public:
         FRULShaderDrawConfig DrawConfig
         );
 
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static FRULTextureValuesRef GetTextureValuesByPoints(
         UObject* WorldContextObject,
         FRULShaderTextureParameterInput SourceTexture,

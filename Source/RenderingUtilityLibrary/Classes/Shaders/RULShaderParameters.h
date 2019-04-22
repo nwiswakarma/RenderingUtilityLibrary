@@ -30,6 +30,7 @@
 #include "CoreMinimal.h"
 #include "RULShaderParameters.generated.h"
 
+class UTexture;
 class UTexture2D;
 class UTextureRenderTarget2D;
 class FTexture2DResource;
@@ -142,4 +143,98 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderTextureParameterInput
     }
 
     FRULShaderTextureParameterInputResource GetResource_GT() const;
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderScalarParameter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ParameterValue;
+
+    FRULShaderScalarParameter() = default;
+    FRULShaderScalarParameter(FName InParameterName, float InParameterValue)
+        : ParameterName(InParameterName)
+        , ParameterValue(InParameterValue)
+    {
+    }
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderVectorParameter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FLinearColor ParameterValue;
+
+    FRULShaderVectorParameter() = default;
+    FRULShaderVectorParameter(FName InParameterName, const FLinearColor& InParameterValue)
+        : ParameterName(InParameterName)
+        , ParameterValue(InParameterValue)
+    {
+    }
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderTextureParameter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UTexture* ParameterValue;
+
+    FRULShaderTextureParameter() = default;
+    FRULShaderTextureParameter(FName InParameterName, UTexture* InParameterValue)
+        : ParameterName(InParameterName)
+        , ParameterValue(InParameterValue)
+    {
+    }
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderNameResolveParameter
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName ParameterValue;
+
+    FRULShaderNameResolveParameter() = default;
+    FRULShaderNameResolveParameter(FName InParameterName, FName InParameterValue)
+        : ParameterName(InParameterName)
+        , ParameterValue(InParameterValue)
+    {
+    }
+};
+
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderMaterialParameterCollection
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FRULShaderScalarParameter> ScalarParameters;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FRULShaderVectorParameter> VectorParameters;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FRULShaderTextureParameter> TextureParameters;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<FRULShaderNameResolveParameter> NamedTextures;
 };

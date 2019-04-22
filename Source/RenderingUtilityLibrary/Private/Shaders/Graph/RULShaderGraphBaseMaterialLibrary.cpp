@@ -38,11 +38,11 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddLevels
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput SourceTexture,
+    FRULShaderGraphTextureInput SourceTexture,
     float InRemapValueLo,
     float InRemapValueHi,
     float OutRemapValueLo,
@@ -95,11 +95,11 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddLevels
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput SourceTexture,
+    FRULShaderGraphTextureInput SourceTexture,
     float InRemapValueLo,
     float InRemapValueHi,
     float OutRemapValueLo,
@@ -158,11 +158,11 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput SourceTexture,
+    FRULShaderGraphTextureInput SourceTexture,
     float Opacity
     )
 {
@@ -200,6 +200,57 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
     return Task;
 }
 
+URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendTargetMaskedTask(
+    URULShaderGraph* Graph,
+    TSubclassOf<URULShaderGraphTask_ApplyMaterial> TaskType,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+    URULShaderGraphTask* OutputTask,
+    const FRULShaderGraphMaterialRef& MaterialRef,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
+    FName ParameterCategoryName,
+    FRULShaderGraphTextureInput SourceTexture,
+    FRULShaderGraphTextureInput MaskTexture,
+    float Opacity
+    )
+{
+    URULShaderGraphTask_ApplyMaterial* Task;
+    Task = URULShaderGraphUtility::AddApplyMaterialTaskWithParameters(
+        Graph,
+        TaskType,
+        TaskConfig,
+        ConfigMethod,
+        OutputTask,
+        MaterialRef,
+        ScalarParameters,
+        VectorParameters,
+        TextureParameters
+        );
+
+    if (IsValid(Task))
+    {
+        TArray<FScalarParam>  MappedScalars;
+        TArray<FTextureParam> MappedTextures;
+
+        MappedScalars.Emplace(TEXT("Opacity"), Opacity);
+        MappedTextures.Emplace(TEXT("SourceTexture"), SourceTexture);
+        MappedTextures.Emplace(TEXT("MaskTexture"), MaskTexture);
+
+        Task->SetParameters(
+            *Graph,
+            ParameterCategoryName,
+            TEXT("BlendTargetMasked"),
+            MappedScalars,
+            { },
+            MappedTextures
+            );
+    }
+
+    return Task;
+}
+
 URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendTask(
     URULShaderGraph* Graph,
     TSubclassOf<URULShaderGraphTask_ApplyMaterial> TaskType,
@@ -207,12 +258,12 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput BackgroundTexture,
-    FRULShaderGraphTaskTextureInput ForegroundTexture,
+    FRULShaderGraphTextureInput BackgroundTexture,
+    FRULShaderGraphTextureInput ForegroundTexture,
     float Opacity
     )
 {
@@ -258,13 +309,13 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendM
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput BackgroundTexture,
-    FRULShaderGraphTaskTextureInput ForegroundTexture,
-    FRULShaderGraphTaskTextureInput MaskTexture,
+    FRULShaderGraphTextureInput BackgroundTexture,
+    FRULShaderGraphTextureInput ForegroundTexture,
+    FRULShaderGraphTextureInput MaskTexture,
     float Opacity
     )
 {
@@ -311,11 +362,11 @@ URULShaderGraphTask_BlurFilter1D* URULShaderGraphBaseMaterialLibrary::AddBlurFil
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput SourceTexture,
+    FRULShaderGraphTextureInput SourceTexture,
     float BlurSampleCount
     )
 {
@@ -354,6 +405,12 @@ URULShaderGraphTask_BlurFilter1D* URULShaderGraphBaseMaterialLibrary::AddBlurFil
                 TEXT("BlurDirectionY")
                 );
 
+            Task->SourceTextureParameterName = Graph->GetParameterNameFromCategory(
+                ParameterCategoryName,
+                TEXT("BlurFilter1D"),
+                TEXT("SourceTexture")
+                );
+
             Task->SetParameters(
                 ScalarParameters,
                 VectorParameters,
@@ -389,11 +446,11 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddDistan
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderGraphMaterialScalarParameter>& ScalarParameters,
-    const TArray<FRULShaderGraphMaterialVectorParameter>& VectorParameters,
-    const TArray<FRULShaderGraphMaterialTextureParameter>& TextureParameters,
+    const TArray<FRULShaderScalarParameter>& ScalarParameters,
+    const TArray<FRULShaderVectorParameter>& VectorParameters,
+    const TArray<FRULShaderGraphTextureParameter>& TextureParameters,
     FName ParameterCategoryName,
-    FRULShaderGraphTaskTextureInput SourceTexture,
+    FRULShaderGraphTextureInput SourceTexture,
     float DistanceSteps
     )
 {

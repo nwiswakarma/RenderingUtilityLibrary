@@ -51,4 +51,7 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(DisplayName="Direction Y Parameter Name"))
     FName DirectionYParameterName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName SourceTextureParameterName;
 };
