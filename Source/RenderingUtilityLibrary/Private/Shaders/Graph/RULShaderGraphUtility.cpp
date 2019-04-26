@@ -33,6 +33,7 @@
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawGeometry.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialPoly.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialQuad.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawTaskToOutput.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ResolveOutput.h"
 
 void URULShaderGraphUtility::AddTask(
@@ -85,6 +86,31 @@ URULShaderGraphTask_ResolveOutput* URULShaderGraphUtility::AddResolveTask(
         {
             Task->SourceTask = SourceTask;
             Task->RenderTargetTexture = RenderTargetTexture;
+            AddTask(*Graph, *Task);
+        }
+    }
+
+    return Task;
+}
+
+URULShaderGraphTask_DrawTaskToOutput* URULShaderGraphUtility::AddDrawTaskToOutputTask(
+    URULShaderGraph* Graph,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    URULShaderGraphTask* SourceTask,
+    FName OutputName
+    )
+{
+    URULShaderGraphTask_DrawTaskToOutput* Task = nullptr;
+
+    if (IsValid(Graph))
+    {
+        Task = NewObject<URULShaderGraphTask_DrawTaskToOutput>(Graph);
+
+        if (IsValid(Task))
+        {
+            Task->SourceTask = SourceTask;
+            Task->OutputName = OutputName;
+            Task->TaskConfig.DrawConfig = TaskConfig.DrawConfig;
             AddTask(*Graph, *Task);
         }
     }
@@ -329,7 +355,7 @@ URULShaderGraphTask_DrawMaterialQuad* URULShaderGraphUtility::AddDrawTextureQuad
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("Opacity"), Opacity);

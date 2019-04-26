@@ -97,7 +97,7 @@ bool URULShaderGraphTask::HasValidOutputRefId() const
 
 void URULShaderGraphTask::GetResolvedOutputConfig(const URULShaderGraph& Graph, FRULShaderOutputConfig& OutputConfig) const
 {
-    Graph.ResolveTaskOutputConfig(*this, OutputConfig);
+    Graph.ResolveOutputConfig(OutputConfig, ConfigMethod);
 }
 
 FRULShaderGraphOutputRT& URULShaderGraphTask::GetOutputRef()

@@ -38,6 +38,7 @@ class UMaterialInterface;
 class UTextureRenderTarget2D;
 class URULShaderGraphTask;
 class URULShaderGraphTask_ResolveOutput;
+class URULShaderGraphTask_DrawTaskToOutput;
 class URULShaderGraphTask_DrawGeometry;
 class URULShaderGraphTask_DrawMaterialPoly;
 class URULShaderGraphTask_DrawMaterialQuad;
@@ -79,6 +80,14 @@ public:
         URULShaderGraph* Graph,
         URULShaderGraphTask* SourceTask,
         UTextureRenderTarget2D* RenderTargetTexture
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Task To Render Target", AdvancedDisplay="Graph,TaskConfig", AutoCreateRefTerm="TaskConfig"))
+    static URULShaderGraphTask_DrawTaskToOutput* AddDrawTaskToOutputTask(
+        URULShaderGraph* Graph,
+        const FRULShaderGraphTaskConfig& TaskConfig,
+        URULShaderGraphTask* SourceTask,
+        FName OutputName
         );
 
     UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Points", AutoCreateRefTerm="TaskConfig,Colors", AdvancedDisplay="Graph,TaskType,TaskConfig,ConfigMethod,OutputTask"))

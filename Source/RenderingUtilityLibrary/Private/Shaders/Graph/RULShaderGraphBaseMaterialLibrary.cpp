@@ -65,7 +65,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddLevels
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("InRemapValueLo"), InRemapValueLo);
@@ -125,7 +125,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddLevels
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("InRemapValueLo"), InRemapValueLo);
@@ -181,7 +181,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("Opacity"), Opacity);
@@ -231,7 +231,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("Opacity"), Opacity);
@@ -282,7 +282,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendT
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("Opacity"), Opacity);
@@ -334,7 +334,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddBlendM
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("Opacity"), Opacity);
@@ -385,7 +385,7 @@ URULShaderGraphTask_BlurFilter1D* URULShaderGraphBaseMaterialLibrary::AddBlurFil
 
         if (IsValid(Task))
         {
-            TArray<FScalarParam>  MappedScalars;
+            TArray<FScalarParam> MappedScalars;
             TArray<FTextureParam> MappedTextures;
 
             MappedScalars.Emplace(TEXT("BlurSampleCount"), BlurSampleCount);
@@ -469,7 +469,7 @@ URULShaderGraphTask_ApplyMaterial* URULShaderGraphBaseMaterialLibrary::AddDistan
 
     if (IsValid(Task))
     {
-        TArray<FScalarParam>  MappedScalars;
+        TArray<FScalarParam> MappedScalars;
         TArray<FTextureParam> MappedTextures;
 
         MappedScalars.Emplace(TEXT("DistanceSteps"), DistanceSteps);

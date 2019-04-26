@@ -36,6 +36,7 @@
 
 class FGraphicsPipelineStateInitializer;
 class UTexture2D;
+class FTexture;
 class FTextureRenderTarget2DResource;
 class UMaterialInterface;
 class FMaterialRenderProxy;
@@ -87,10 +88,16 @@ class RENDERINGUTILITYLIBRARY_API URULShaderLibrary : public UBlueprintFunctionL
     static bool IsValidSwapTarget_RT(FTexture2DRHIParamRef Tex0, FTexture2DRHIParamRef Tex1);
 
     static void AssignBlendState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, ERULShaderDrawBlendType BlendType);
+    static void AssignBlendState(FMeshPassProcessorRenderState& RenderState, ERULShaderDrawBlendType BlendType);
 
     static void SetupDefaultGraphicsPSOInit(
         FGraphicsPipelineStateInitializer& GraphicsPSOInit,
         EPrimitiveType PrimitiveType,
+        const FRULShaderDrawConfig& DrawConfig
+        );
+
+    static void SetupDefaultRenderState(
+        FMeshPassProcessorRenderState& RenderState,
         const FRULShaderDrawConfig& DrawConfig
         );
 
@@ -278,6 +285,23 @@ public:
         const TArray<int32>& Indices,
         FTextureRenderTarget2DResource* RenderTargetResource,
         const FMaterialRenderProxy* MaterialRenderProxy,
+        FRULShaderDrawConfig DrawConfig
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
+    static void DrawTexture(
+        UObject* WorldContextObject,
+        UTexture* SourceTexture,
+        UTextureRenderTarget2D* RenderTarget,
+        FRULShaderDrawConfig DrawConfig,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    static void DrawTexture_RT(
+        FRHICommandListImmediate& RHICmdList,
+        ERHIFeatureLevel::Type FeatureLevel,
+        FTextureRenderTarget2DResource* RenderTargetResource,
+        const FTexture* SourceTexture,
         FRULShaderDrawConfig DrawConfig
         );
 

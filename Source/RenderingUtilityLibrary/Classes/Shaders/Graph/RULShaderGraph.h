@@ -35,6 +35,21 @@ class UMaterialInterface;
 class URULShaderGraphTask;
 class URULShaderGraphManager;
 
+USTRUCT(BlueprintType)
+struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphOutputEntry
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FRULShaderOutputConfig OutputConfig;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod = RUL_CM_Parent;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly)
+    UTextureRenderTarget2D* RenderTarget;
+};
+
 UCLASS(BlueprintType, Blueprintable)
 class RENDERINGUTILITYLIBRARY_API URULShaderGraph : public UObject
 {
@@ -58,6 +73,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, FRULShaderGraphParameterNameMap> ParameterNameMap;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TMap<FName, FRULShaderGraphOutputEntry> OutputMap;
+
     UFUNCTION(BlueprintCallable)
     void AddTask(URULShaderGraphTask* Task);
 
@@ -75,6 +93,9 @@ public:
 
     UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="Prepare Graph"))
 	bool K2_PrepareGraph(URULShaderGraphManager* InGraphManager);
+
+    UFUNCTION(BlueprintCallable)
+	UTextureRenderTarget2D* GetOutputRenderTarget(FName OutputName);
 
     FORCEINLINE bool HasValidDimension() const
     {
@@ -122,6 +143,14 @@ public:
     UMaterialInstanceDynamic* GetCachedMID(FName MaterialName, bool bClearParameterValues = false);
 
     bool HasGraphManager() const;
-    void ResolveTaskOutputConfig(const URULShaderGraphTask& Task, FRULShaderOutputConfig& OutConfig) const;
     void ExecuteGraph(URULShaderGraphManager* InGraphManager);
+
+    void ResolveOutputConfig(
+        FRULShaderOutputConfig& OutConfig,
+        TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+        URULShaderGraphTask* InputTask = nullptr
+        ) const;
+
+	FRULShaderGraphOutputEntry* GetOutput(FName OutputName);
+	UTextureRenderTarget2D* CreateOutputRenderTarget(FName OutputName, const FRULShaderOutputConfig& InOutputConfig);
 };

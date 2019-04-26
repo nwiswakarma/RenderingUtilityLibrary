@@ -102,10 +102,10 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphTextureInput
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    UTexture* Texture;
+    UTexture* Texture = nullptr;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    URULShaderGraphTask* Task;
+    URULShaderGraphTask* Task = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -114,7 +114,7 @@ struct RENDERINGUTILITYLIBRARY_API FRULShaderGraphMaterialRef
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    UMaterialInterface* Material;
+    UMaterialInterface* Material = nullptr;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName MaterialName;

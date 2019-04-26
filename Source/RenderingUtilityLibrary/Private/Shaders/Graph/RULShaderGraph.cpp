@@ -79,9 +79,13 @@ URULShaderGraphManager* URULShaderGraph::K2_GetGraphManager() const
     return GetGraphManager();
 }
 
-void URULShaderGraph::ResolveTaskOutputConfig(const URULShaderGraphTask& Task, FRULShaderOutputConfig& OutConfig) const
+void URULShaderGraph::ResolveOutputConfig(
+    FRULShaderOutputConfig& OutConfig,
+    TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
+    URULShaderGraphTask* InputTask
+    ) const
 {
-    switch (Task.ConfigMethod)
+    switch (ConfigMethod)
     {
         case RUL_CM_Parent:
             OutConfig = OutputConfig;
@@ -103,9 +107,43 @@ void URULShaderGraph::AssignOutput(URULShaderGraphTask& Task)
     if (! Task.HasValidOutput())
     {
         FRULShaderOutputConfig TaskOutputConfig;
-        ResolveTaskOutputConfig(Task, TaskOutputConfig);
+        Task.GetResolvedOutputConfig(*this, TaskOutputConfig);
 
         GraphManager->FindFreeOutputRT(TaskOutputConfig, Task.GetOutputRef());
+    }
+}
+
+FRULShaderGraphOutputEntry* URULShaderGraph::GetOutput(FName OutputName)
+{
+    return OutputMap.Find(OutputName);
+}
+
+UTextureRenderTarget2D* URULShaderGraph::CreateOutputRenderTarget(FName OutputName, const FRULShaderOutputConfig& InOutputConfig)
+{
+    FRULShaderGraphOutputEntry* OutputEntry = OutputMap.Find(OutputName);
+
+    if (OutputEntry && HasGraphManager())
+    {
+        OutputEntry->RenderTarget = GraphManager->CreateOutputRenderTarget(InOutputConfig);
+        return OutputEntry->RenderTarget;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+UTextureRenderTarget2D* URULShaderGraph::GetOutputRenderTarget(FName OutputName)
+{
+    FRULShaderGraphOutputEntry* OutputEntry = OutputMap.Find(OutputName);
+
+    if (OutputEntry)
+    {
+        return OutputEntry->RenderTarget;
+    }
+    else
+    {
+        return nullptr;
     }
 }
 

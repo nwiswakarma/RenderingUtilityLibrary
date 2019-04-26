@@ -29,10 +29,18 @@
 #include "Kismet/KismetRenderingLibrary.h"
 
 #if WITH_EDITOR
-void URULShaderGraphManager::CheckCallInEditor()
+void URULShaderGraphManager::CallEditorCustomEvent()
 {
+    EditorCustomEvent();
 }
 #endif
+
+UTextureRenderTarget2D* URULShaderGraphManager::GetGraphOutput(FName OutputName)
+{
+    return IsValid(Graph)
+        ? Graph->GetOutputRenderTarget(OutputName)
+        : nullptr;
+}
 
 void URULShaderGraphManager::K2_ExecuteGraph(URULShaderGraph* OptGraph)
 {
@@ -101,6 +109,16 @@ int32 URULShaderGraphManager::FindFreeRTIndex(const FRULShaderOutputConfig& Outp
     return OutputIndex;
 }
 
+UTextureRenderTarget2D* URULShaderGraphManager::CreateOutputRenderTarget(const FRULShaderOutputConfig& OutputConfig)
+{
+    return UKismetRenderingLibrary::CreateRenderTarget2D(
+        this,
+        OutputConfig.SizeX,
+        OutputConfig.SizeY,
+        OutputConfig.Format
+        );
+}
+
 void URULShaderGraphManager::FindFreeOutputRT(const FRULShaderOutputConfig& OutputConfig, FRULShaderGraphOutputRT& OutputRT)
 {
     int32 OutputIndex = FindFreeRTIndex(OutputConfig);
@@ -116,13 +134,7 @@ void URULShaderGraphManager::FindFreeOutputRT(const FRULShaderOutputConfig& Outp
     // Create new output
     else
     {
-        UTextureRenderTarget2D* NewRenderTarget;
-        NewRenderTarget = UKismetRenderingLibrary::CreateRenderTarget2D(
-            this,
-            OutputConfig.SizeX,
-            OutputConfig.SizeY,
-            OutputConfig.Format
-            );
+        UTextureRenderTarget2D* NewRenderTarget = CreateOutputRenderTarget(OutputConfig);
 
         if (IsValid(NewRenderTarget))
         {

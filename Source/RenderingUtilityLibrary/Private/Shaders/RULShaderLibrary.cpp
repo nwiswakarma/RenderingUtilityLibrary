@@ -27,17 +27,21 @@
 
 #include "Shaders/RULShaderLibrary.h"
 
+#include "BatchedElements.h"
 #include "CanvasTypes.h"
-#include "Materials/MaterialInstanceSupport.h"
+#include "EngineModule.h"
+#include "HitProxies.h"
+#include "MeshPassProcessor.h"
 #include "UniformBuffer.h"
 #include "RHICommandList.h"
 #include "RHIStaticStates.h"
 #include "RHIResources.h"
 #include "RenderResource.h"
 #include "PipelineStateCache.h"
-#include "ShaderParameterUtils.h"
 #include "ScreenRendering.h"
+#include "ShaderParameterUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Materials/MaterialInstanceSupport.h"
 #include "Kismet/KismetRenderingLibrary.h"
 
 #include "GWTTickUtilities.h"
@@ -448,6 +452,36 @@ void URULShaderLibrary::AssignBlendState(FGraphicsPipelineStateInitializer& Grap
     }
 }
 
+void URULShaderLibrary::AssignBlendState(FMeshPassProcessorRenderState& RenderState, ERULShaderDrawBlendType BlendType)
+{
+    switch (BlendType)
+    {
+        case ERULShaderDrawBlendType::DB_Opaque:
+            RenderState.SetBlendState(TStaticBlendState<>::GetRHI());
+            break;
+
+        case ERULShaderDrawBlendType::DB_Max:
+            RenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_Max, BF_SourceAlpha, BF_One>::GetRHI());
+            break;
+
+        case ERULShaderDrawBlendType::DB_Min:
+            RenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_Min, BF_SourceAlpha, BF_One>::GetRHI());
+            break;
+
+        case ERULShaderDrawBlendType::DB_Add:
+            RenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_Add, BF_SourceAlpha, BF_One>::GetRHI());
+            break;
+
+        case ERULShaderDrawBlendType::DB_Sub:
+            RenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_Subtract, BF_SourceAlpha, BF_One>::GetRHI());
+            break;
+
+        case ERULShaderDrawBlendType::DB_SubRev:
+            RenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_ReverseSubtract, BF_SourceAlpha, BF_One>::GetRHI());
+            break;
+    }
+}
+
 void URULShaderLibrary::SetupMaterialParameters(
     FRHICommandListImmediate& RHICmdList,
     ERHIFeatureLevel::Type FeatureLevel,
@@ -502,6 +536,15 @@ void URULShaderLibrary::SetupDefaultGraphicsPSOInit(
     GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
     GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
     GraphicsPSOInit.PrimitiveType = PrimitiveType;
+}
+
+void URULShaderLibrary::SetupDefaultRenderState(
+    FMeshPassProcessorRenderState& RenderState,
+    const FRULShaderDrawConfig& DrawConfig
+    )
+{
+    AssignBlendState(RenderState, DrawConfig.BlendType);
+    RenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 }
 
 void URULShaderLibrary::CopyToResolveTarget(
@@ -878,7 +921,8 @@ void URULShaderLibrary::DrawGeometryColors(
                 RenderParameter.DrawConfig,
                 RenderParameter.DrawSize,
                 RenderParameter.Vertices,
-                RenderParameter.Indices
+                RenderParameter.Indices,
+                &RenderParameter.Colors
                 );
             FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
         }
@@ -939,7 +983,8 @@ void URULShaderLibrary::DrawGeometry_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig), TextureRSV);
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("DrawGeometry"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawGeometry"));
     {
         // Set graphics pipeline
 
@@ -1095,7 +1140,8 @@ void URULShaderLibrary::ApplyMaterial_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("ApplyMaterial"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_ApplyMaterial"));
     {
         // Set graphics pipeline
 
@@ -1327,7 +1373,8 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("ApplyMaterialFilter"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_ApplyMaterialFilter"));
     {
         // Set graphics pipeline
 
@@ -1362,7 +1409,12 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
         {
             // Render pass
             FRHIRenderPassInfo SwapRPInfo(TextureRTV1, ERenderTargetActions::Load_Store);
-            RHICmdList.BeginRenderPass(SwapRPInfo, TEXT("ApplyMaterialFilter"));
+            // Apply render pass target transition only on the first iteration
+            if (i == 1)
+            {
+                TransitionRenderPassTargets(RHICmdList, RPInfo);
+            }
+            RHICmdList.BeginRenderPass(SwapRPInfo, TEXT("RULShaderLibrary_ApplyMaterialFilter"));
             {
                 // Bind swap texture
                 PSShader->BindTexture(RHICmdList, TEXT("SourceMap"), TEXT("SourceMapSampler"), TextureRTV0, TextureSampler);
@@ -1609,7 +1661,8 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("ApplyMultiParametersMaterial"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_ApplyMultiParametersMaterial"));
     {
         // Set graphics pipeline
 
@@ -1649,7 +1702,12 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
         {
             // Render pass
             FRHIRenderPassInfo SwapRPInfo(TextureRTV1, ERenderTargetActions::Load_Store);
-            RHICmdList.BeginRenderPass(SwapRPInfo, TEXT("ApplyMultiParametersMaterial"));
+            // Apply render pass target transition only on the first iteration
+            if (i == 1)
+            {
+                TransitionRenderPassTargets(RHICmdList, RPInfo);
+            }
+            RHICmdList.BeginRenderPass(SwapRPInfo, TEXT("RULShaderLibrary_ApplyMultiParametersMaterial"));
             {
                 // Bind shader parameters
 
@@ -1877,7 +1935,8 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("DrawMaterialQuad"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawMaterialQuad"));
     {
         // Set graphics pipeline
 
@@ -2083,7 +2142,8 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
     // Render pass
 
     FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("DrawMaterialPoly"));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawMaterialPoly"));
     {
         // Set graphics pipeline
 
@@ -2102,6 +2162,179 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
 
         VSShader->UnbindBuffers(RHICmdList);
         PSShader->UnbindBuffers(RHICmdList);
+    }
+    RHICmdList.EndRenderPass();
+}
+
+void URULShaderLibrary::DrawTexture(
+    UObject* WorldContextObject,
+    UTexture* SourceTexture,
+    UTextureRenderTarget2D* RenderTarget,
+    FRULShaderDrawConfig DrawConfig,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
+
+    if (! IsValid(World))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        return;
+    }
+
+    if (! World->Scene)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD SCENE"));
+        return;
+    }
+
+    if (! IsValid(SourceTexture))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID TEXTURE"));
+        return;
+    }
+
+    if (! IsValid(RenderTarget))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET"));
+        return;
+    }
+
+    RenderTargetResource = static_cast<FTextureRenderTarget2DResource*>(RenderTarget->GameThread_GetRenderTargetResource());
+
+    if (! RenderTargetResource)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        return;
+    }
+
+    World->SendAllEndOfFrameUpdates();
+
+    struct FRenderParameter
+    {
+        ERHIFeatureLevel::Type FeatureLevel;
+        FTextureRenderTarget2DResource* RenderTargetResource;
+        const FTexture* SourceTexture;
+        FRULShaderDrawConfig DrawConfig;
+        UGWTTickEvent* CallbackEvent;
+    };
+
+    FRenderParameter RenderParameter = {
+        World->Scene->GetFeatureLevel(),
+        RenderTargetResource,
+        SourceTexture->Resource,
+        DrawConfig,
+        CallbackEvent
+        };
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_ApplyMaterial)(
+        [RenderParameter](FRHICommandListImmediate& RHICmdList)
+        {
+            URULShaderLibrary::DrawTexture_RT(
+                RHICmdList,
+                RenderParameter.FeatureLevel,
+                RenderParameter.RenderTargetResource,
+                RenderParameter.SourceTexture,
+                RenderParameter.DrawConfig
+                );
+            FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
+        }
+    );
+}
+
+void URULShaderLibrary::DrawTexture_RT(
+    FRHICommandListImmediate& RHICmdList,
+    ERHIFeatureLevel::Type FeatureLevel,
+    FTextureRenderTarget2DResource* RenderTargetResource,
+    const FTexture* SourceTexture,
+    FRULShaderDrawConfig DrawConfig
+    )
+{
+    check(IsInRenderingThread());
+
+    if (! RenderTargetResource || ! SourceTexture)
+    {
+        return;
+    }
+
+    // Prepare render target texture and resolve target
+    FTextureRHIParamRef TextureRTV = RenderTargetResource->GetRenderTargetTexture();
+
+    if (! TextureRTV)
+    {
+        return;
+    }
+
+    // Setup viewport
+    FIntPoint SizeXY(RenderTargetResource->GetSizeXY());
+	FIntRect ViewRect(FIntPoint(0, 0), SizeXY);
+    RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+    // Safe check render pass
+    GetRendererModule().InitializeSystemTextures(RHICmdList);
+    check(RHICmdList.IsOutsideRenderPass());
+
+    // Render pass with the specified render target
+    FRHIRenderPassInfo RPInfo(TextureRTV, ERenderTargetActions::Load_Store);
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawTexture"));
+    {
+		float Gamma = 1.0f / RenderTargetResource->GetDisplayGamma();
+		bool bNeedsToSwitchVerticalAxis = !RHINeedsToSwitchVerticalAxis(GShaderPlatformForFeatureLevel[FeatureLevel]);
+
+        // Prepare view
+        FSceneView SceneView(FBatchedElements::CreateProxySceneView(FMatrix::Identity, ViewRect));
+        FMeshPassProcessorRenderState DrawRenderState(SceneView);
+
+        // Set blend state and disable depth test & writes
+        SetupDefaultRenderState(DrawRenderState, DrawConfig);
+
+        // Construct and draw batched elements
+
+        FBatchedElements BatchedElements;
+
+        {
+            float L = -1.f;
+            float T = -1.f;
+            float R =  1.f;
+            float B =  1.f;
+            FVector2D UV0(0.f, 0.f);
+            FVector2D UV1(1.f, 1.f);
+            int32 V00 = BatchedElements.AddVertex(
+                FVector4(L, T, 0.f, 1.f),
+                FVector2D(UV0.X, UV0.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V10 = BatchedElements.AddVertex(
+                FVector4(R, T, 0.f, 1.f),
+                FVector2D(UV1.X, UV0.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V01 = BatchedElements.AddVertex(
+                FVector4(L, B, 0.f, 1.f),
+                FVector2D(UV0.X, UV1.Y),		
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V11 = BatchedElements.AddVertex(
+                FVector4(R,	B, 0.f, 1.f),
+                FVector2D(UV1.X, UV1.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+
+            BatchedElements.AddTriangle(V00, V10, V11, SourceTexture, SE_BLEND_Opaque);
+            BatchedElements.AddTriangle(V00, V11, V01, SourceTexture, SE_BLEND_Opaque);
+        }
+
+        BatchedElements.Draw(
+            RHICmdList,
+            DrawRenderState,
+            FeatureLevel,
+            bNeedsToSwitchVerticalAxis,
+            SceneView,
+            false,
+            Gamma
+            );
     }
     RHICmdList.EndRenderPass();
 }

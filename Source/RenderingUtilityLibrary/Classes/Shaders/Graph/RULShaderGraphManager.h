@@ -59,8 +59,14 @@ public:
 
 #if WITH_EDITOR
 	UFUNCTION(meta=(CallInEditor="true"))
-    void CheckCallInEditor();
+    void CallEditorCustomEvent();
+
+    UFUNCTION(BlueprintImplementableEvent)
+	bool EditorCustomEvent();
 #endif
+
+    UFUNCTION(BlueprintCallable)
+	UTextureRenderTarget2D* GetGraphOutput(FName OutputName);
 
     UFUNCTION(BlueprintCallable, meta=(DisplayName="Execute Graph"))
     void K2_ExecuteGraph(URULShaderGraph* OptGraph);
@@ -72,6 +78,7 @@ public:
     void Initialize(URULShaderGraph* OptGraph);
     void Execute();
 
+    UTextureRenderTarget2D* CreateOutputRenderTarget(const FRULShaderOutputConfig& OutputConfig);
     void FindFreeOutputRT(const FRULShaderOutputConfig& OutputConfig, FRULShaderGraphOutputRT& OutputRT);
     void ClearOutputRTs();
 
