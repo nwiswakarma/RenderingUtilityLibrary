@@ -106,15 +106,6 @@ struct FRULRWBuffer
 		SRV = RHICreateShaderResourceView(Buffer, BytesPerElement, Format);
 	}
 
-	void AcquireTransientResource()
-	{
-		RHIAcquireTransientResource(Buffer);
-	}
-	void DiscardTransientResource()
-	{
-		RHIDiscardTransientResource(Buffer);
-	}
-
 	void Release()
 	{
 		int32 BufferRefCount = Buffer ? Buffer->GetRefCount() : -1;
@@ -129,6 +120,27 @@ struct FRULRWBuffer
 		UAV.SafeRelease();
 		SRV.SafeRelease();
 	}
+
+	void AcquireTransientResource()
+	{
+		RHIAcquireTransientResource(Buffer);
+	}
+	void DiscardTransientResource()
+	{
+		RHIDiscardTransientResource(Buffer);
+	}
+
+    void* LockReadOnly()
+    {
+        check(IsValid());
+        return RHILockVertexBuffer(Buffer, 0, Buffer->GetSize(), RLM_ReadOnly);
+    }
+
+    void Unlock()
+    {
+        check(IsValid());
+        return RHIUnlockVertexBuffer(Buffer);
+    }
 };
 
 // Encapsulates a GPU read buffer with its SRV
@@ -303,5 +315,79 @@ struct FRULRWBufferStructured
 	void DiscardTransientResource()
 	{
 		RHIDiscardTransientResource(Buffer);
+	}
+
+    void* LockReadOnly()
+    {
+        check(IsValid());
+        return RHILockStructuredBuffer(Buffer, 0, Buffer->GetSize(), RLM_ReadOnly);
+    }
+
+    void Unlock()
+    {
+        check(IsValid());
+        return RHIUnlockStructuredBuffer(Buffer);
+    }
+};
+
+// Encapsulates a GPU read ByteAddress buffer with its SRV
+struct FRULByteAddressBuffer
+{
+	FStructuredBufferRHIRef Buffer;
+	FShaderResourceViewRHIRef SRV;
+	uint32 NumBytes;
+
+	FRULByteAddressBuffer(): NumBytes(0) {}
+
+    FORCEINLINE bool IsValid() const
+    {
+        return NumBytes > 0;
+    }
+
+	void Initialize(uint32 InNumBytes, uint32 AdditionalUsage = 0)
+	{
+		NumBytes = InNumBytes;
+		check(GMaxRHIFeatureLevel == ERHIFeatureLevel::SM5);
+		check(NumBytes % 4 == 0);
+		FRHIResourceCreateInfo CreateInfo;
+		Buffer = RHICreateStructuredBuffer(4, NumBytes, BUF_ShaderResource | BUF_ByteAddressBuffer | AdditionalUsage, CreateInfo);
+		SRV = RHICreateShaderResourceView(Buffer);
+	}
+
+	void Release()
+	{
+		NumBytes = 0;
+		Buffer.SafeRelease();
+		SRV.SafeRelease();
+	}
+
+    void* LockReadOnly()
+    {
+        check(IsValid());
+        return RHILockStructuredBuffer(Buffer, 0, Buffer->GetSize(), RLM_ReadOnly);
+    }
+
+    void Unlock()
+    {
+        check(IsValid());
+        return RHIUnlockStructuredBuffer(Buffer);
+    }
+};
+
+// Encapsulates a GPU read/write ByteAddress buffer with its UAV and SRV
+struct FRULRWByteAddressBuffer : public FRULByteAddressBuffer
+{
+	FUnorderedAccessViewRHIRef UAV;
+
+	void Initialize(uint32 InNumBytes, uint32 AdditionalUsage = 0)
+	{
+		FRULByteAddressBuffer::Initialize(InNumBytes, BUF_UnorderedAccess | AdditionalUsage);
+		UAV = RHICreateUnorderedAccessView(Buffer, false, false);
+	}
+
+	void Release()
+	{
+		FRULByteAddressBuffer::Release();
+		UAV.SafeRelease();
 	}
 };

@@ -29,8 +29,8 @@
 
 #include "CoreMinimal.h"
 #include "RHIResources.h"
+#include "Geom/GULGeometryInstanceTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Shaders/RULShaderGeometry.h"
 #include "Shaders/RULShaderParameters.h"
 #include "RULShaderLibrary.generated.h"
 
@@ -133,7 +133,7 @@ public:
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void CopyToResolveTarget(
         UObject* WorldContextObject,
-        FRULShaderTextureParameterInput SourceTexture,
+        UTexture* SourceTexture,
         UTextureRenderTarget2D* RenderTarget,
         UGWTTickEvent* CallbackEvent = nullptr
         );
@@ -252,7 +252,7 @@ public:
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawMaterialQuad(
         UObject* WorldContextObject,
-        const TArray<FRULShaderQuadGeometry>& Quads,
+        const TArray<FGULQuadGeometryInstance>& Quads,
         UMaterialInterface* Material,
         UTextureRenderTarget2D* RenderTarget,
         FRULShaderDrawConfig DrawConfig,
@@ -262,7 +262,7 @@ public:
     static void DrawMaterialQuad_RT(
         FRHICommandListImmediate& RHICmdList,
         ERHIFeatureLevel::Type FeatureLevel,
-        const TArray<FRULShaderQuadGeometry>& Quads,
+        const TArray<FGULQuadGeometryInstance>& Quads,
         FTextureRenderTarget2DResource* RenderTargetResource,
         const FMaterialRenderProxy* MaterialRenderProxy,
         FRULShaderDrawConfig DrawConfig
@@ -271,7 +271,7 @@ public:
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void DrawMaterialPoly(
         UObject* WorldContextObject,
-        const TArray<FRULShaderPolyGeometry>& Polys,
+        const TArray<FGULPolyGeometryInstance>& Polys,
         UMaterialInterface* Material,
         UTextureRenderTarget2D* RenderTarget,
         FRULShaderDrawConfig DrawConfig,
@@ -301,7 +301,7 @@ public:
         FRHICommandListImmediate& RHICmdList,
         ERHIFeatureLevel::Type FeatureLevel,
         FTextureRenderTarget2DResource* RenderTargetResource,
-        const FTexture* SourceTexture,
+        FTexture* SourceTexture,
         FRULShaderDrawConfig DrawConfig
         );
 
@@ -324,13 +324,16 @@ public:
         );
 
     UFUNCTION(BlueprintCallable)
-    static TArray<FLinearColor> GetTextureValuesOutput(const FRULTextureValuesRef& ValuesRef);
-
-    UFUNCTION(BlueprintCallable)
-    static void GetTextureValuesOutputByReference(const FRULTextureValuesRef& ValuesRef, UPARAM(ref) TArray<FLinearColor>& Values);
+    static void GetTextureValuesOutput(const FRULTextureValuesRef& ValuesRef, TArray<FLinearColor>& Values);
 
     UFUNCTION(BlueprintCallable)
     static void ClearTextureValuesOutput(UPARAM(ref) FRULTextureValuesRef& ValuesRef);
+
+    UFUNCTION(BlueprintCallable)
+    static void ConvertPointsToScreenCoordinates(const TArray<FVector2D>& Points, TArray<FVector2D>& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY);
+
+    UFUNCTION(BlueprintCallable, BlueprintPure)
+    static void ConvertPointToScreenCoordinates(FVector2D Points, FVector2D& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY);
 
     UFUNCTION(BlueprintCallable)
     static void TestGPUCompute(

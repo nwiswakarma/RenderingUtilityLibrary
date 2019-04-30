@@ -34,6 +34,7 @@
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialPoly.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawMaterialQuad.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawTaskToOutput.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawTaskToTexture.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ResolveOutput.h"
 
 void URULShaderGraphUtility::AddTask(
@@ -110,6 +111,31 @@ URULShaderGraphTask_DrawTaskToOutput* URULShaderGraphUtility::AddDrawTaskToOutpu
         {
             Task->SourceTask = SourceTask;
             Task->OutputName = OutputName;
+            Task->TaskConfig.DrawConfig = TaskConfig.DrawConfig;
+            AddTask(*Graph, *Task);
+        }
+    }
+
+    return Task;
+}
+
+URULShaderGraphTask_DrawTaskToTexture* URULShaderGraphUtility::AddDrawTaskToTextureTask(
+    URULShaderGraph* Graph,
+    const FRULShaderGraphTaskConfig& TaskConfig,
+    URULShaderGraphTask* SourceTask,
+    UTextureRenderTarget2D* RenderTargetTexture
+    )
+{
+    URULShaderGraphTask_DrawTaskToTexture* Task = nullptr;
+
+    if (IsValid(Graph))
+    {
+        Task = NewObject<URULShaderGraphTask_DrawTaskToTexture>(Graph);
+
+        if (IsValid(Task))
+        {
+            Task->SourceTask = SourceTask;
+            Task->RenderTargetTexture = RenderTargetTexture;
             Task->TaskConfig.DrawConfig = TaskConfig.DrawConfig;
             AddTask(*Graph, *Task);
         }
@@ -268,7 +294,7 @@ URULShaderGraphTask_DrawMaterialQuad* URULShaderGraphUtility::AddDrawMaterialQua
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderQuadGeometry>& Quads
+    const TArray<FGULQuadGeometryInstance>& Quads
     )
 {
     URULShaderGraphTask_DrawMaterialQuad* Task = nullptr;
@@ -302,7 +328,7 @@ URULShaderGraphTask_DrawMaterialPoly* URULShaderGraphUtility::AddDrawMaterialPol
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderPolyGeometry>& Polys
+    const TArray<FGULPolyGeometryInstance>& Polys
     )
 {
     URULShaderGraphTask_DrawMaterialPoly* Task = nullptr;
@@ -336,7 +362,7 @@ URULShaderGraphTask_DrawMaterialQuad* URULShaderGraphUtility::AddDrawTextureQuad
     TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
     URULShaderGraphTask* OutputTask,
     const FRULShaderGraphMaterialRef& MaterialRef,
-    const TArray<FRULShaderQuadGeometry>& Quads,
+    const TArray<FGULQuadGeometryInstance>& Quads,
     FName ParameterCategoryName,
     FRULShaderGraphTextureInput SourceTexture,
     float Opacity

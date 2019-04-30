@@ -52,7 +52,7 @@ void URULShaderGraphTask_ResolveOutput::Execute(URULShaderGraph* Graph)
     {
         URULShaderLibrary::CopyToResolveTarget(
             Graph->GetGraphManager(),
-            FRULShaderTextureParameterInput(SourceOutputRT),
+            SourceOutputRT,
             RenderTargetTexture
             );
     }

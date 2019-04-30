@@ -49,7 +49,8 @@ namespace UnrealBuildTool.Rules
                     "Engine",
                     "RHI",
                     "RenderCore",
-                    "Renderer"
+                    "Renderer",
+                    "GeometryUtilityLibrary"
                 } );
 
             PrivateDependencyModuleNames.AddRange(

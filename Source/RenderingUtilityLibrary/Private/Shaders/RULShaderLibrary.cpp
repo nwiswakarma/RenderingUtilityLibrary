@@ -549,7 +549,7 @@ void URULShaderLibrary::SetupDefaultRenderState(
 
 void URULShaderLibrary::CopyToResolveTarget(
     UObject* WorldContextObject,
-    FRULShaderTextureParameterInput SourceTexture,
+    UTexture* SourceTexture,
     UTextureRenderTarget2D* RenderTarget,
     UGWTTickEvent* CallbackEvent
     )
@@ -562,13 +562,19 @@ void URULShaderLibrary::CopyToResolveTarget(
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID WORLD CONTEXT OBJECT"));
         return;
     }
-
+    else
     if (! World->Scene)
     {
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID WORLD SCENE"));
         return;
     }
-
+    else
+    if (! IsValid(SourceTexture))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID SOURCE TEXTURE"));
+        return;
+    }
+    else
     if (! IsValid(RenderTarget))
     {
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::CopyToResolveTarget() ABORTED, INVALID RENDER TARGET"));
@@ -586,14 +592,14 @@ void URULShaderLibrary::CopyToResolveTarget(
     struct FRenderParameter
     {
         ERHIFeatureLevel::Type FeatureLevel;
-        FRULShaderTextureParameterInputResource SourceTextureResource;
+        FTexture* SourceTextureResource;
         FTextureRenderTarget2DResource* RenderTargetResource;
         UGWTTickEvent* CallbackEvent;
     };
 
     FRenderParameter RenderParameter = {
         World->Scene->GetFeatureLevel(),
-        SourceTexture.GetResource_GT(),
+        SourceTexture->Resource,
         RenderTargetResource,
         CallbackEvent
         };
@@ -605,7 +611,7 @@ void URULShaderLibrary::CopyToResolveTarget(
             if (RenderParameter.RenderTargetResource)
             {
                 // Prepare source and resolve target textures
-                FTextureRHIParamRef SourceTexture = RenderParameter.SourceTextureResource.GetTextureParamRef_RT();
+                FTextureRHIParamRef SourceTexture = RenderParameter.SourceTextureResource->TextureRHI;
                 FTextureRHIParamRef TargetTexture = RenderParameter.RenderTargetResource->TextureRHI;
 
                 // Copy to resolve target
@@ -911,7 +917,7 @@ void URULShaderLibrary::DrawGeometryColors(
 
     // Construct vertex data
 
-    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawGeometry)(
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawGeometryColors)(
         [RenderParameter](FRHICommandListImmediate& RHICmdList)
         {
             URULShaderLibrary::DrawGeometry_RT(
@@ -1756,7 +1762,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
 
 void URULShaderLibrary::DrawMaterialQuad(
     UObject* WorldContextObject,
-    const TArray<FRULShaderQuadGeometry>& Quads,
+    const TArray<FGULQuadGeometryInstance>& Quads,
     UMaterialInterface* Material,
     UTextureRenderTarget2D* RenderTarget,
     FRULShaderDrawConfig DrawConfig,
@@ -1811,7 +1817,7 @@ void URULShaderLibrary::DrawMaterialQuad(
     struct FRenderParameter
     {
         ERHIFeatureLevel::Type FeatureLevel;
-        const TArray<FRULShaderQuadGeometry> Quads;
+        const TArray<FGULQuadGeometryInstance> Quads;
         FTextureRenderTarget2DResource* RenderTargetResource;
         const FMaterialRenderProxy* MaterialRenderProxy;
         FRULShaderDrawConfig DrawConfig;
@@ -1846,7 +1852,7 @@ void URULShaderLibrary::DrawMaterialQuad(
 void URULShaderLibrary::DrawMaterialQuad_RT(
     FRHICommandListImmediate& RHICmdList,
     ERHIFeatureLevel::Type FeatureLevel,
-    const TArray<FRULShaderQuadGeometry>& Quads,
+    const TArray<FGULQuadGeometryInstance>& Quads,
     FTextureRenderTarget2DResource* RenderTargetResource,
     const FMaterialRenderProxy* MaterialRenderProxy,
     FRULShaderDrawConfig DrawConfig
@@ -1880,13 +1886,13 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
     QuadGeomArr.Reserve(QuadCount);
     QuadTransformArr.Reserve(QuadCount);
 
-    for (const FRULShaderQuadGeometry& Quad : Quads)
+    for (const FGULQuadGeometryInstance& Quad : Quads)
     {
         const FVector2D& Origin(Quad.Origin);
         const FVector2D& Size(Quad.Size);
 
         QuadGeomArr.Emplace(Origin.X, Origin.Y, Size.X, Size.Y);
-        QuadTransformArr.Emplace(Quad.Scale, Quad.AngleRadian, Quad.Luminosity, 0.f);
+        QuadTransformArr.Emplace(Quad.Scale, Quad.Angle, Quad.Value, 0.f);
     }
     
     FRULReadBuffer QuadGeomData;
@@ -1965,7 +1971,7 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
 
 void URULShaderLibrary::DrawMaterialPoly(
     UObject* WorldContextObject,
-    const TArray<FRULShaderPolyGeometry>& Polys,
+    const TArray<FGULPolyGeometryInstance>& Polys,
     UMaterialInterface* Material,
     UTextureRenderTarget2D* RenderTarget,
     FRULShaderDrawConfig DrawConfig,
@@ -2038,7 +2044,7 @@ void URULShaderLibrary::DrawMaterialPoly(
         CallbackEvent
         };
 
-    for (const FRULShaderPolyGeometry& Poly : Polys)
+    for (const FGULPolyGeometryInstance& Poly : Polys)
     {
         const int32 Sides = FMath::Max(3, Poly.Sides);
 
@@ -2047,24 +2053,24 @@ void URULShaderLibrary::DrawMaterialPoly(
 
         const FVector2D& Origin(Poly.Origin);
         const FVector2D& Size(Poly.Size);
-        const float Luminosity = Poly.Luminosity;
+        const float Value = Poly.Value;
         const float Scale = Poly.Scale;
         const float UnitAngle = 2*PI / Sides;
         int32 OriginIndex = Vertices.Num();
         int32 IndexOffset = OriginIndex+1;
 
-        Vertices.Emplace(Origin.X, Origin.Y, Luminosity, 1.f);
+        Vertices.Emplace(Origin.X, Origin.Y, Value, 1.f);
 
         for (int32 i=0; i<Sides; ++i)
         {
             float ExtentS, ExtentC;
-            float AngleDeg = FMath::RadiansToDegrees(Poly.AngleRadian);
+            float AngleDeg = FMath::RadiansToDegrees(Poly.Angle);
             FMath::SinCos(&ExtentS, &ExtentC, i*UnitAngle);
 
             FVector2D Extent(ExtentC, ExtentS);
             FVector2D Vertex(Origin + (Extent * Size * Scale).GetRotated(AngleDeg));
 
-            Vertices.Emplace(Vertex.X, Vertex.Y, Luminosity, 0.f);
+            Vertices.Emplace(Vertex.X, Vertex.Y, Value, 0.f);
 
             Indices.Emplace(OriginIndex  );
             Indices.Emplace(IndexOffset+i);
@@ -2182,19 +2188,19 @@ void URULShaderLibrary::DrawTexture(
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD CONTEXT OBJECT"));
         return;
     }
-
+    else
     if (! World->Scene)
     {
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD SCENE"));
         return;
     }
-
+    else
     if (! IsValid(SourceTexture))
     {
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID TEXTURE"));
         return;
     }
-
+    else
     if (! IsValid(RenderTarget))
     {
         UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET"));
@@ -2215,7 +2221,7 @@ void URULShaderLibrary::DrawTexture(
     {
         ERHIFeatureLevel::Type FeatureLevel;
         FTextureRenderTarget2DResource* RenderTargetResource;
-        const FTexture* SourceTexture;
+        FTexture* SourceTexture;
         FRULShaderDrawConfig DrawConfig;
         UGWTTickEvent* CallbackEvent;
     };
@@ -2228,7 +2234,7 @@ void URULShaderLibrary::DrawTexture(
         CallbackEvent
         };
 
-    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_ApplyMaterial)(
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawTexture)(
         [RenderParameter](FRHICommandListImmediate& RHICmdList)
         {
             URULShaderLibrary::DrawTexture_RT(
@@ -2247,7 +2253,7 @@ void URULShaderLibrary::DrawTexture_RT(
     FRHICommandListImmediate& RHICmdList,
     ERHIFeatureLevel::Type FeatureLevel,
     FTextureRenderTarget2DResource* RenderTargetResource,
-    const FTexture* SourceTexture,
+    FTexture* SourceTexture,
     FRULShaderDrawConfig DrawConfig
     )
 {
@@ -2510,14 +2516,7 @@ void URULShaderLibrary::GetTextureValuesByPoints_RT(
     RHICmdList.EndComputePass();
 }
 
-TArray<FLinearColor> URULShaderLibrary::GetTextureValuesOutput(const FRULTextureValuesRef& ValuesRef)
-{
-    TArray<FLinearColor> Values;
-    ValuesRef.GetValuesFromRef(Values);
-    return Values;
-}
-
-void URULShaderLibrary::GetTextureValuesOutputByReference(const FRULTextureValuesRef& ValuesRef, UPARAM(ref) TArray<FLinearColor>& Values)
+void URULShaderLibrary::GetTextureValuesOutput(const FRULTextureValuesRef& ValuesRef, TArray<FLinearColor>& Values)
 {
     ValuesRef.GetValuesFromRef(Values);
 }
@@ -2525,6 +2524,21 @@ void URULShaderLibrary::GetTextureValuesOutputByReference(const FRULTextureValue
 void URULShaderLibrary::ClearTextureValuesOutput(FRULTextureValuesRef& ValuesRef)
 {
     ValuesRef.ClearValues();
+}
+
+void URULShaderLibrary::ConvertToScreenCoordinates(const TArray<FVector2D>& Points, TArray<FVector2D>& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY)
+{
+    FBox2D DrawBounds(FVector2D::ZeroVector, FVector2D(DrawSizeX, DrawSizeY));
+    FVector2D DrawScale(FVector2D::UnitVector/DrawBounds.GetExtent());
+    FVector2D DrawOffset(-DrawBounds.GetCenter()*DrawScale);
+
+    ScreenPoints.SetNumUninitialized(Points.Num());
+
+    for (int32 i=0; i<Points.Num(); ++i)
+    {
+        const FVector2D& DrawPoint(Points[i]);
+        ScreenPoints[i] = DrawPoint*DrawScale + DrawOffset;
+    }
 }
 
 void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCount, UGWTTickEvent* CallbackEvent)

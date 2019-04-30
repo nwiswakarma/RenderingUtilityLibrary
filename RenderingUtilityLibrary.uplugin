@@ -22,6 +22,10 @@
 		{
 			"Name" : "GenericWorkerThread",
 			"Enabled": true
+		},
+		{
+			"Name" : "GeometryUtilityLibrary",
+			"Enabled": true
 		}
 	]
 }

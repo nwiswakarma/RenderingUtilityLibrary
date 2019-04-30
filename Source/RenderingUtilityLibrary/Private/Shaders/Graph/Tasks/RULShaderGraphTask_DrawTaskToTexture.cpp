@@ -25,60 +25,35 @@
 ////////////////////////////////////////////////////////////////////////////////
 // 
 
-#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawTaskToOutput.h"
+#include "Shaders/Graph/Tasks/RULShaderGraphTask_DrawTaskToTexture.h"
 #include "Shaders/RULShaderLibrary.h"
 #include "Shaders/Graph/RULShaderGraph.h"
 
-URULShaderGraphTask_DrawTaskToOutput::URULShaderGraphTask_DrawTaskToOutput(const FObjectInitializer& ObjectInitializer)
+URULShaderGraphTask_DrawTaskToTexture::URULShaderGraphTask_DrawTaskToTexture(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
     bRequireOutput = false;
 }
 
-void URULShaderGraphTask_DrawTaskToOutput::Initialize(URULShaderGraph* Graph)
+void URULShaderGraphTask_DrawTaskToTexture::Initialize(URULShaderGraph* Graph)
 {
     check(IsValid(Graph));
     DependencyMap.Emplace(TEXT("SourceOutput"), SourceTask);
 }
 
-void URULShaderGraphTask_DrawTaskToOutput::Execute(URULShaderGraph* Graph)
+void URULShaderGraphTask_DrawTaskToTexture::Execute(URULShaderGraph* Graph)
 {
     check(IsValid(Graph));
 
     UTextureRenderTarget2D* SourceOutputRT;
     SourceOutputRT = GetOutputRTFromDependencyMap(TEXT("SourceOutput"));
 
-    FRULShaderGraphOutputEntry* OutputEntry = Graph->GetOutput(OutputName);
-
-    if (! IsValid(SourceOutputRT) || ! OutputEntry)
-    {
-        return;
-    }
-
-    FRULShaderOutputConfig SourceOutputConfig;
-    SourceTask->GetResolvedOutputConfig(*Graph, SourceOutputConfig);
-
-    FRULShaderOutputConfig TargetOutputConfig(OutputEntry->OutputConfig);
-    Graph->ResolveOutputConfig(TargetOutputConfig, OutputEntry->ConfigMethod, SourceTask);
-
-    UTextureRenderTarget2D* TargetOutputRT = Graph->CreateOutputRenderTarget(OutputName, TargetOutputConfig);
-
-    check(IsValid(TargetOutputRT));
-
-    if (SourceOutputConfig.Compare(TargetOutputConfig))
-    {
-        URULShaderLibrary::CopyToResolveTarget(
-            Graph->GetGraphManager(),
-            SourceOutputRT,
-            TargetOutputRT
-            );
-    }
-    else
+    if (IsValid(SourceOutputRT) && IsValid(RenderTargetTexture))
     {
         URULShaderLibrary::DrawTexture(
             Graph->GetGraphManager(),
             SourceOutputRT,
-            TargetOutputRT,
+            RenderTargetTexture,
             TaskConfig.DrawConfig
             );
     }

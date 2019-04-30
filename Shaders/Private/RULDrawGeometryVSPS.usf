@@ -31,7 +31,13 @@
 #define RUL_ENABLE_VERTEX_COLOR 0
 #endif
 
+// .xy : Position
+// .zw : Size
 Buffer<float4> QuadGeomData;
+
+// .x : Scale
+// .y : Angle
+// .z : Value
 Buffer<float4> QuadTransformData;
 
 float4 _DrawScaleBias;

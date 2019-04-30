@@ -28,6 +28,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Geom/GULGeometryInstanceTypes.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ApplyMaterial.h"
 #include "RULShaderGraphTask_DrawMaterialPoly.generated.h"
 
@@ -43,5 +44,5 @@ protected:
 public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<FRULShaderPolyGeometry> Polys;
+    TArray<FGULPolyGeometryInstance> Polys;
 };

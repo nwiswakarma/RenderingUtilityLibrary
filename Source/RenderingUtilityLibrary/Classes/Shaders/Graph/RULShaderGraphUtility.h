@@ -28,8 +28,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Geom/GULGeometryInstanceTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
-#include "Shaders/RULShaderGeometry.h"
 #include "Shaders/RULShaderParameters.h"
 #include "Shaders/Graph/RULShaderGraphTypes.h"
 #include "RULShaderGraphUtility.generated.h"
@@ -39,6 +39,7 @@ class UTextureRenderTarget2D;
 class URULShaderGraphTask;
 class URULShaderGraphTask_ResolveOutput;
 class URULShaderGraphTask_DrawTaskToOutput;
+class URULShaderGraphTask_DrawTaskToTexture;
 class URULShaderGraphTask_DrawGeometry;
 class URULShaderGraphTask_DrawMaterialPoly;
 class URULShaderGraphTask_DrawMaterialQuad;
@@ -82,12 +83,20 @@ public:
         UTextureRenderTarget2D* RenderTargetTexture
         );
 
-    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Task To Render Target", AdvancedDisplay="Graph,TaskConfig", AutoCreateRefTerm="TaskConfig"))
+    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Task To Graph Output", AdvancedDisplay="Graph,TaskConfig", AutoCreateRefTerm="TaskConfig"))
     static URULShaderGraphTask_DrawTaskToOutput* AddDrawTaskToOutputTask(
         URULShaderGraph* Graph,
         const FRULShaderGraphTaskConfig& TaskConfig,
         URULShaderGraphTask* SourceTask,
         FName OutputName
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Task To Texture", AdvancedDisplay="Graph,TaskConfig", AutoCreateRefTerm="TaskConfig"))
+    static URULShaderGraphTask_DrawTaskToTexture* AddDrawTaskToTextureTask(
+        URULShaderGraph* Graph,
+        const FRULShaderGraphTaskConfig& TaskConfig,
+        URULShaderGraphTask* SourceTask,
+        UTextureRenderTarget2D* RenderTargetTexture
         );
 
     UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Points", AutoCreateRefTerm="TaskConfig,Colors", AdvancedDisplay="Graph,TaskType,TaskConfig,ConfigMethod,OutputTask"))
@@ -145,7 +154,7 @@ public:
         TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
         URULShaderGraphTask* OutputTask,
         const FRULShaderGraphMaterialRef& MaterialRef,
-        const TArray<FRULShaderQuadGeometry>& Quads
+        const TArray<FGULQuadGeometryInstance>& Quads
         );
 
     UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Material Poly", AutoCreateRefTerm="TaskConfig,MaterialRef", AdvancedDisplay="Graph,TaskType,ConfigMethod,OutputTask"))
@@ -156,7 +165,7 @@ public:
         TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
         URULShaderGraphTask* OutputTask,
         const FRULShaderGraphMaterialRef& MaterialRef,
-        const TArray<FRULShaderPolyGeometry>& Polys
+        const TArray<FGULPolyGeometryInstance>& Polys
         );
 
     UFUNCTION(BlueprintCallable, meta=(DefaultToSelf="Graph", DisplayName="Draw Texture Quad", AutoCreateRefTerm="TaskConfig,MaterialRef", AdvancedDisplay="Graph,TaskType,ConfigMethod,OutputTask,ParameterCategoryName"))
@@ -167,7 +176,7 @@ public:
         TEnumAsByte<enum ERULShaderGraphConfigMethod> ConfigMethod,
         URULShaderGraphTask* OutputTask,
         const FRULShaderGraphMaterialRef& MaterialRef,
-        const TArray<FRULShaderQuadGeometry>& Quads,
+        const TArray<FGULQuadGeometryInstance>& Quads,
         FName ParameterCategoryName,
         FRULShaderGraphTextureInput SourceTexture,
         float Opacity = 1.f

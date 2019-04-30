@@ -28,6 +28,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Geom/GULGeometryInstanceTypes.h"
 #include "Shaders/Graph/Tasks/RULShaderGraphTask_ApplyMaterial.h"
 #include "RULShaderGraphTask_DrawMaterialQuad.generated.h"
 
@@ -43,5 +44,5 @@ protected:
 public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<FRULShaderQuadGeometry> Quads;
+    TArray<FGULQuadGeometryInstance> Quads;
 };

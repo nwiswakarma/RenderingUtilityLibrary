@@ -28,49 +28,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RULShaderGeometry.generated.h"
+#include "Shaders/Graph/RULShaderGraphTask.h"
+#include "RULShaderGraphTask_DrawTaskToTexture.generated.h"
 
-USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderQuadGeometry
+class UTextureRenderTarget2D;
+
+UCLASS()
+class RENDERINGUTILITYLIBRARY_API URULShaderGraphTask_DrawTaskToTexture : public URULShaderGraphTask
 {
-    GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
+
+public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FVector2D Origin;
+    URULShaderGraphTask* SourceTask;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FVector2D Size = FVector2D::UnitVector;
+    UTextureRenderTarget2D* RenderTargetTexture;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Scale = 1.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float AngleRadian = 0.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Luminosity = 1.f;
-};
-
-USTRUCT(BlueprintType)
-struct RENDERINGUTILITYLIBRARY_API FRULShaderPolyGeometry
-{
-    GENERATED_BODY()
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FVector2D Origin;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    FVector2D Size = FVector2D::UnitVector;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    int32 Sides = 3;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Scale = 1.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float AngleRadian = 0.f;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    float Luminosity = 1.f;
+    virtual void Initialize(URULShaderGraph* Graph) override;
+    virtual void Execute(URULShaderGraph* Graph) override;
 };
