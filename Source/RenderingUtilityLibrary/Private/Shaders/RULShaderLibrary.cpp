@@ -2526,7 +2526,7 @@ void URULShaderLibrary::ClearTextureValuesOutput(FRULTextureValuesRef& ValuesRef
     ValuesRef.ClearValues();
 }
 
-void URULShaderLibrary::ConvertToScreenCoordinates(const TArray<FVector2D>& Points, TArray<FVector2D>& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY)
+void URULShaderLibrary::ConvertPointsToScreenCoordinates(const TArray<FVector2D>& Points, TArray<FVector2D>& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY)
 {
     FBox2D DrawBounds(FVector2D::ZeroVector, FVector2D(DrawSizeX, DrawSizeY));
     FVector2D DrawScale(FVector2D::UnitVector/DrawBounds.GetExtent());
@@ -2537,8 +2537,17 @@ void URULShaderLibrary::ConvertToScreenCoordinates(const TArray<FVector2D>& Poin
     for (int32 i=0; i<Points.Num(); ++i)
     {
         const FVector2D& DrawPoint(Points[i]);
-        ScreenPoints[i] = DrawPoint*DrawScale + DrawOffset;
+        ScreenPoints[i] = DrawOffset + DrawPoint*DrawScale;
     }
+}
+
+void URULShaderLibrary::ConvertPointToScreenCoordinate(FVector2D Point, FVector2D& ScreenPoint, int32 DrawSizeX, int32 DrawSizeY)
+{
+    FBox2D DrawBounds(FVector2D::ZeroVector, FVector2D(DrawSizeX, DrawSizeY));
+    FVector2D DrawScale(FVector2D::UnitVector/DrawBounds.GetExtent());
+    FVector2D DrawOffset(-DrawBounds.GetCenter()*DrawScale);
+
+    ScreenPoint = DrawOffset + Point*DrawScale;
 }
 
 void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCount, UGWTTickEvent* CallbackEvent)

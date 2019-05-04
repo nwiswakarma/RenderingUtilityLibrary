@@ -29,13 +29,6 @@
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
 
-#if WITH_EDITOR
-#include "ISettingsModule.h"
-#include "ISettingsSection.h"
-#endif
-
-#include "RenderingUtilitySettings.h"
-
 #define LOCTEXT_NAMESPACE "IRenderingUtilityLibrary"
 
 class FRenderingUtilityLibrary : public IRenderingUtilityLibrary
@@ -45,12 +38,6 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-
-private:
-
-    void RegisterSettings();
-    void UnregisterSettings();
-    bool HandleSettingsSaved();
 };
 
 void FRenderingUtilityLibrary::StartupModule()
@@ -58,65 +45,13 @@ void FRenderingUtilityLibrary::StartupModule()
     // Register shader source base directory
     FString PluginShaderDir = FPaths::Combine(IPluginManager::Get().FindPlugin(TEXT("RenderingUtilityLibrary"))->GetBaseDir(), TEXT("Shaders"));
     AddShaderSourceDirectoryMapping(TEXT("/Plugin/RenderingUtilityLibrary"), PluginShaderDir);
-
-#if WITH_EDITOR
-    // We don't quite have control of when the "Settings" module is loaded, so we'll wait until PostEngineInit to register settings.
-    FCoreDelegates::OnPostEngineInit.AddRaw(this, &FRenderingUtilityLibrary::RegisterSettings);
-#endif // WITH_EDITOR
 }
 
 void FRenderingUtilityLibrary::ShutdownModule()
 {
-#if WITH_EDITOR
-    UnregisterSettings();
-#endif
+    // Blank implementation
 }
 
-#if WITH_EDITOR
-void FRenderingUtilityLibrary::RegisterSettings()
-{
-    ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-
-    // While this should usually be true, it's not guaranteed that the settings module will be loaded in the editor.
-    // UBT allows setting bBuildDeveloperTools to false while bBuildEditor can be true.
-    // The former option indirectly controls loading of the "Settings" module.
-    if (SettingsModule)
-    {
-        ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "RenderingUtilityLibrary",
-            LOCTEXT("RenderingUtilityLibrarySettingsName", "Rendering Utility Library"),
-            LOCTEXT("RenderingUtilityLibrarySettingsDescription", "Configure the Rendering Utility Library plug-in."),
-            GetMutableDefault<URenderingUtilitySettings>()
-        );
-
-        if (SettingsSection.IsValid())
-        {
-            SettingsSection->OnModified().BindRaw(this, &FRenderingUtilityLibrary::HandleSettingsSaved);
-        }
-    }
-}
-
-void FRenderingUtilityLibrary::UnregisterSettings()
-{
-    ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-
-    if (SettingsModule)
-    {
-        SettingsModule->UnregisterSettings("Project", "Plugins", "RenderingUtilityLibrary");
-    }
-}
-
-bool FRenderingUtilityLibrary::HandleSettingsSaved()
-{
-    URenderingUtilitySettings* Settings = GetMutableDefault<URenderingUtilitySettings>();
-
-    if (IsValid(Settings))
-    {
-        Settings->SaveConfig();
-    }
-
-    return true;
-}
-#endif
 
 IMPLEMENT_MODULE(FRenderingUtilityLibrary, RenderingUtilityLibrary)
 DEFINE_LOG_CATEGORY(LogRUL);

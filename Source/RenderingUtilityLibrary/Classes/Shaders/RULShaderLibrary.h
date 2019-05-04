@@ -333,7 +333,7 @@ public:
     static void ConvertPointsToScreenCoordinates(const TArray<FVector2D>& Points, TArray<FVector2D>& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY);
 
     UFUNCTION(BlueprintCallable, BlueprintPure)
-    static void ConvertPointToScreenCoordinates(FVector2D Points, FVector2D& ScreenPoints, int32 DrawSizeX, int32 DrawSizeY);
+    static void ConvertPointToScreenCoordinate(FVector2D Point, FVector2D& ScreenPoint, int32 DrawSizeX, int32 DrawSizeY);
 
     UFUNCTION(BlueprintCallable)
     static void TestGPUCompute(

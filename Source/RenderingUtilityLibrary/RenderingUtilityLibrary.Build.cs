@@ -48,14 +48,14 @@ namespace UnrealBuildTool.Rules
                     "CoreUObject",
                     "Engine",
                     "RHI",
-                    "RenderCore",
-                    "Renderer",
                     "GeometryUtilityLibrary"
                 } );
 
             PrivateDependencyModuleNames.AddRange(
                 new string[] {
                     "Projects",
+                    "RenderCore",
+                    "Renderer",
                     "GenericWorkerThread"
                 } );
         }
