@@ -25,13 +25,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 
-#if 1
 #define BLOCK_SIZE  128
 #define BLOCK_SIZE2 256
-#else
-#define BLOCK_SIZE  16 //2
-#define BLOCK_SIZE2 32 //4
-#endif
 
 #define GROUPSHARED_SIZE BLOCK_SIZE2
 
@@ -39,9 +34,6 @@
 #define GET_LOCAL_IDX  lid.x
 #define GET_GROUP_IDX  gid.x
 #define GROUP_LDS_BARRIER GroupMemoryBarrierWithGroupSync()
-
-#define WG_SIZE  BLOCK_SIZE
-#define WG_SIZE2 BLOCK_SIZE2
 
 #ifndef data_t
 #define data_t uint
@@ -113,18 +105,18 @@ data_t ScanExclusiveBlock(uint n, uint lIdx)
     return blocksum;
 }
 
-[numthreads(WG_SIZE,1,1)]
+[numthreads(BLOCK_SIZE,1,1)]
 void LocalScanKernel(
     uint3 tid : SV_DispatchThreadID,
     uint3 lid : SV_GroupThreadID,
     uint3 gid : SV_GroupID
     )
 {
-    uint gIdx = GET_GLOBAL_IDX;
-    uint lIdx = GET_LOCAL_IDX;
+    const uint gIdx = GET_GLOBAL_IDX;
+    const uint lIdx = GET_LOCAL_IDX;
 
-    uint2 bid = (2*lIdx) + uint2(0,1);
-    uint2 did = (2*gIdx) + uint2(0,1);
+    const uint2 bid = (2*lIdx) + uint2(0,1);
+    const uint2 did = (2*gIdx) + uint2(0,1);
 
 #if LOCAL_SCAN_USE_SRC
     ldsData[bid.x] = (did.x < _ElementCount) ? SrcData[did.x] : 0;
@@ -134,7 +126,7 @@ void LocalScanKernel(
     ldsData[bid.y] = (did.y < _ElementCount) ? DstData[did.y] : 0;
 #endif
 
-    data_t sum = ScanExclusiveBlock(WG_SIZE2, GET_LOCAL_IDX);
+    data_t sum = ScanExclusiveBlock(BLOCK_SIZE2, lIdx);
 
     if (lIdx == 0)
     {
@@ -152,22 +144,22 @@ void LocalScanKernel(
     }
 }
 
-[numthreads(WG_SIZE,1,1)]
+[numthreads(BLOCK_SIZE,1,1)]
 void TopLevelScanKernel(
     uint3 tid : SV_DispatchThreadID,
     uint3 lid : SV_GroupThreadID,
     uint3 gid : SV_GroupID
     )
 {
-    uint gIdx = GET_GLOBAL_IDX;
-    uint lIdx = GET_LOCAL_IDX;
+    const uint gIdx = GET_GLOBAL_IDX;
+    const uint lIdx = GET_LOCAL_IDX;
 
     ldsData[2*lIdx  ] = ((2*gIdx  ) < _BlockCount) ? SumData[2*gIdx  ] : 0;
     ldsData[2*lIdx+1] = ((2*gIdx+1) < _BlockCount) ? SumData[2*gIdx+1] : 0;
 
     GROUP_LDS_BARRIER;
 
-    data_t sum = ScanExclusiveBlock(_ScanBlockCount, GET_LOCAL_IDX);
+    data_t sum = ScanExclusiveBlock(_ScanBlockCount, lIdx);
 
     if ((2*gIdx) < _BlockCount)
     {
@@ -189,14 +181,14 @@ void TopLevelScanKernel(
     }
 }
 
-[numthreads(WG_SIZE,1,1)]
+[numthreads(BLOCK_SIZE,1,1)]
 void AddOffsetKernel(
     uint3 tid : SV_DispatchThreadID,
     uint3 lid : SV_GroupThreadID,
     uint3 gid : SV_GroupID
     )
 {
-    uint tidx = GET_GLOBAL_IDX+WG_SIZE;
+    uint tidx = GET_GLOBAL_IDX+BLOCK_SIZE;
     uint gidx = GET_GROUP_IDX+1;
 
     data_t sum = SumData[gidx];

@@ -249,6 +249,16 @@ struct FRULRWBufferStructured
         return NumBytes > 0;
     }
 
+    FORCEINLINE bool IsValidIndex(int32 Index) const
+    {
+        return IsValid() && Index >= 0 && Index < GetNumElements();
+    }
+
+    FORCEINLINE int32 GetNumElements() const
+    {
+        return IsValid() ? Buffer->GetSize() / Buffer->GetStride() : 0;
+    }
+
     void Initialize(
         uint32 BytesPerElement,
         uint32 NumElements,

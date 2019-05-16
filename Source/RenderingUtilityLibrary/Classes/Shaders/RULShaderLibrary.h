@@ -186,6 +186,23 @@ public:
         );
 
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
+    static void DrawTexture(
+        UObject* WorldContextObject,
+        UTexture* SourceTexture,
+        UTextureRenderTarget2D* RenderTarget,
+        FRULShaderDrawConfig DrawConfig,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    static void DrawTexture_RT(
+        FRHICommandListImmediate& RHICmdList,
+        ERHIFeatureLevel::Type FeatureLevel,
+        FTexture* SourceTexture,
+        FTextureRenderTarget2DResource* RenderTargetResource,
+        FRULShaderDrawConfig DrawConfig
+        );
+
+    UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
     static void ApplyMaterial(
         UObject* WorldContextObject,
         UMaterialInterface* Material,
@@ -234,6 +251,7 @@ public:
         UTextureRenderTarget2D* RenderTarget,
         UTextureRenderTarget2D* SwapTarget = nullptr,
         int32 ParameterCollectionStartIndex = 0,
+        int32 ParameterCollectionRepeatCount = 0,
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
@@ -246,7 +264,8 @@ public:
         FMaterialInstanceResource* MIResource,
         const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
         const TArray<UTexture*>& ResolveTextures,
-        int32 ParameterCollectionStartIndex
+        int32 ParameterCollectionStartIndex,
+        int32 ParameterCollectionRepeatCount
         );
 
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
@@ -289,7 +308,7 @@ public:
         );
 
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
-    static void DrawTexture(
+    static void ApplyAutoLevels(
         UObject* WorldContextObject,
         UTexture* SourceTexture,
         UTextureRenderTarget2D* RenderTarget,
@@ -297,11 +316,11 @@ public:
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
-    static void DrawTexture_RT(
+    static void ApplyAutoLevels_RT(
         FRHICommandListImmediate& RHICmdList,
         ERHIFeatureLevel::Type FeatureLevel,
-        FTextureRenderTarget2DResource* RenderTargetResource,
         FTexture* SourceTexture,
+        FTextureRenderTarget2DResource* RenderTargetResource,
         FRULShaderDrawConfig DrawConfig
         );
 
@@ -336,9 +355,72 @@ public:
     static void ConvertPointToScreenCoordinate(FVector2D Point, FVector2D& ScreenPoint, int32 DrawSizeX, int32 DrawSizeY);
 
     UFUNCTION(BlueprintCallable)
-    static void TestGPUCompute(
+    static void TestPrefixSumScan(
         UObject* WorldContextObject,
         int32 TestCount,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan1D(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        float MaxValue,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan2D(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        float MaxValue,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan4D(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        float MaxValue,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan1DUint(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan2DUint(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
+        UGWTTickEvent* CallbackEvent = nullptr
+        );
+
+    UFUNCTION(BlueprintCallable)
+    static void TestReduceScan4DUint(
+        UObject* WorldContextObject,
+        int32 Seed,
+        int32 TestCount,
+        int32 MaxValueIndex,
+        bool bRandomizeIndex,
         UGWTTickEvent* CallbackEvent = nullptr
         );
 };

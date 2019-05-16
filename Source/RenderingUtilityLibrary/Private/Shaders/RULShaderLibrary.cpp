@@ -50,6 +50,7 @@
 #include "RHI/RULRHIUtilityLibrary.h"
 #include "Shaders/RULShaderDefinitions.h"
 #include "Shaders/RULPrefixSumScan.h"
+#include "Shaders/RULReduceScan.h"
 
 class FRULColorGeometryVertexDeclaration : public FRenderResource
 {
@@ -214,6 +215,39 @@ class FRULShaderDrawPolyVS : public FRULBaseVertexShader
 };
 
 IMPLEMENT_SHADER_TYPE(, FRULShaderDrawPolyVS, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULDrawGeometryVSPS.usf"), TEXT("DrawPolyVS"), SF_Vertex);
+
+class FRULShaderAutoLevelPS : public FRULBasePixelShader
+{
+    typedef FRULBasePixelShader FBaseType;
+
+    RUL_DECLARE_SHADER_CONSTRUCTOR_DEFAULT_STATICS_WITH_TEXTURE(FRULShaderAutoLevelPS, Global, true)
+
+    RUL_DECLARE_SHADER_PARAMETERS_1(
+        Texture,
+        FShaderResourceParameter,
+        FResourceId,
+        "SourceTexture", SourceTexture
+        )
+
+    RUL_DECLARE_SHADER_PARAMETERS_1(
+        Sampler,
+        FShaderResourceParameter,
+        FResourceId,
+        "SourceTextureSampler", SourceTextureSampler
+        )
+
+    RUL_DECLARE_SHADER_PARAMETERS_1(
+        SRV,
+        FShaderResourceParameter,
+        FResourceId,
+        "AutoLevelData", AutoLevelData
+        )
+
+    RUL_DECLARE_SHADER_PARAMETERS_0(UAV,,)
+    RUL_DECLARE_SHADER_PARAMETERS_0(Value,,)
+};
+
+IMPLEMENT_SHADER_TYPE(, FRULShaderAutoLevelPS, TEXT("/Plugin/RenderingUtilityLibrary/Private/RULAutoLevelPS.usf"), TEXT("AutoLevelPS"), SF_Pixel);
 
 class FRULShaderGetTextureValues : public FRULBaseComputeShader<256,1,1>
 {
@@ -1015,6 +1049,179 @@ void URULShaderLibrary::DrawGeometry_RT(
     RHICmdList.EndRenderPass();
 }
 
+void URULShaderLibrary::DrawTexture(
+    UObject* WorldContextObject,
+    UTexture* SourceTexture,
+    UTextureRenderTarget2D* RenderTarget,
+    FRULShaderDrawConfig DrawConfig,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    FTextureRenderTarget2DResource* RenderTargetResource = nullptr;
+
+    if (! IsValid(World))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        return;
+    }
+    else
+    if (! World->Scene)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD SCENE"));
+        return;
+    }
+    else
+    if (! IsValid(SourceTexture))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID TEXTURE"));
+        return;
+    }
+    else
+    if (! IsValid(RenderTarget))
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET"));
+        return;
+    }
+
+    RenderTargetResource = static_cast<FTextureRenderTarget2DResource*>(RenderTarget->GameThread_GetRenderTargetResource());
+
+    if (! RenderTargetResource)
+    {
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        return;
+    }
+
+    World->SendAllEndOfFrameUpdates();
+
+    struct FRenderParameter
+    {
+        ERHIFeatureLevel::Type FeatureLevel;
+        FTexture* SourceTexture;
+        FTextureRenderTarget2DResource* RenderTargetResource;
+        FRULShaderDrawConfig DrawConfig;
+        UGWTTickEvent* CallbackEvent;
+    };
+
+    FRenderParameter RenderParameter = {
+        World->Scene->GetFeatureLevel(),
+        SourceTexture->Resource,
+        RenderTargetResource,
+        DrawConfig,
+        CallbackEvent
+        };
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawTexture)(
+        [RenderParameter](FRHICommandListImmediate& RHICmdList)
+        {
+            URULShaderLibrary::DrawTexture_RT(
+                RHICmdList,
+                RenderParameter.FeatureLevel,
+                RenderParameter.SourceTexture,
+                RenderParameter.RenderTargetResource,
+                RenderParameter.DrawConfig
+                );
+            FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
+        }
+    );
+}
+
+void URULShaderLibrary::DrawTexture_RT(
+    FRHICommandListImmediate& RHICmdList,
+    ERHIFeatureLevel::Type FeatureLevel,
+    FTexture* SourceTexture,
+    FTextureRenderTarget2DResource* RenderTargetResource,
+    FRULShaderDrawConfig DrawConfig
+    )
+{
+    check(IsInRenderingThread());
+
+    if (! RenderTargetResource || ! SourceTexture)
+    {
+        return;
+    }
+
+    // Prepare render target texture and resolve target
+    FTextureRHIParamRef TextureRTV = RenderTargetResource->GetRenderTargetTexture();
+
+    if (! TextureRTV)
+    {
+        return;
+    }
+
+    // Setup viewport
+    FIntPoint SizeXY(RenderTargetResource->GetSizeXY());
+	FIntRect ViewRect(FIntPoint(0, 0), SizeXY);
+    RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+
+    // Safe check render pass
+    GetRendererModule().InitializeSystemTextures(RHICmdList);
+    check(RHICmdList.IsOutsideRenderPass());
+
+    // Render pass with the specified render target
+    FRHIRenderPassInfo RPInfo(TextureRTV, ERenderTargetActions::Load_Store);
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawTexture"));
+    {
+		float Gamma = 1.0f / RenderTargetResource->GetDisplayGamma();
+		bool bNeedsToSwitchVerticalAxis = !RHINeedsToSwitchVerticalAxis(GShaderPlatformForFeatureLevel[FeatureLevel]);
+
+        // Prepare view
+        FSceneView SceneView(FBatchedElements::CreateProxySceneView(FMatrix::Identity, ViewRect));
+        FMeshPassProcessorRenderState DrawRenderState(SceneView);
+
+        // Set blend state and disable depth test & writes
+        SetupDefaultRenderState(DrawRenderState, DrawConfig);
+
+        // Construct and draw batched elements
+
+        FBatchedElements BatchedElements;
+
+        {
+            float L = -1.f;
+            float T = -1.f;
+            float R =  1.f;
+            float B =  1.f;
+            FVector2D UV0(0.f, 0.f);
+            FVector2D UV1(1.f, 1.f);
+            int32 V00 = BatchedElements.AddVertex(
+                FVector4(L, T, 0.f, 1.f),
+                FVector2D(UV0.X, UV0.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V10 = BatchedElements.AddVertex(
+                FVector4(R, T, 0.f, 1.f),
+                FVector2D(UV1.X, UV0.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V01 = BatchedElements.AddVertex(
+                FVector4(L, B, 0.f, 1.f),
+                FVector2D(UV0.X, UV1.Y),		
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+            int32 V11 = BatchedElements.AddVertex(
+                FVector4(R,	B, 0.f, 1.f),
+                FVector2D(UV1.X, UV1.Y),
+                FLinearColor::White,
+                FHitProxyId::InvisibleHitProxyId );
+
+            BatchedElements.AddTriangle(V00, V10, V11, SourceTexture, SE_BLEND_Opaque);
+            BatchedElements.AddTriangle(V00, V11, V01, SourceTexture, SE_BLEND_Opaque);
+        }
+
+        BatchedElements.Draw(
+            RHICmdList,
+            DrawRenderState,
+            FeatureLevel,
+            bNeedsToSwitchVerticalAxis,
+            SceneView,
+            false,
+            Gamma
+            );
+    }
+    RHICmdList.EndRenderPass();
+}
+
 void URULShaderLibrary::ApplyMaterial(
     UObject* WorldContextObject,
     UMaterialInterface* Material,
@@ -1120,6 +1327,11 @@ void URULShaderLibrary::ApplyMaterial_RT(
     {
         return;
     }
+
+    // Update deferred expression cache
+
+    MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
+    FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
 	// Create default render target view
 
@@ -1309,6 +1521,11 @@ void URULShaderLibrary::ApplyMaterialFilter_RT(
         return;
     }
 
+    // Update deferred expression cache
+
+    MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
+    FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
+
     const bool bIsMultiPass = RepeatCount > 0;
 
     // Prepare swap texture for multi-pass filter
@@ -1458,6 +1675,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial(
     UTextureRenderTarget2D* RenderTarget,
     UTextureRenderTarget2D* SwapTarget,
     int32 ParameterCollectionStartIndex,
+    int32 ParameterCollectionRepeatCount,
     UGWTTickEvent* CallbackEvent
     )
 {
@@ -1530,6 +1748,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial(
         TArray<FRULShaderMaterialParameterCollection> ParameterCollections;
         TArray<UTexture*> ResolveTextures;
         int32 ParameterCollectionStartIndex;
+        int32 ParameterCollectionRepeatCount;
         UGWTTickEvent* CallbackEvent;
     };
 
@@ -1542,6 +1761,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial(
         ParameterCollections,
         { RenderTarget, SwapTarget },
         ParameterCollectionStartIndex,
+        FMath::Max(0, ParameterCollectionRepeatCount),
         CallbackEvent
         };
 
@@ -1557,7 +1777,8 @@ void URULShaderLibrary::ApplyMultiParametersMaterial(
                 RenderParameter.MaterialInstanceResource,
                 RenderParameter.ParameterCollections,
                 RenderParameter.ResolveTextures,
-                RenderParameter.ParameterCollectionStartIndex
+                RenderParameter.ParameterCollectionStartIndex,
+                RenderParameter.ParameterCollectionRepeatCount
                 );
             FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
         }
@@ -1573,12 +1794,13 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
     FMaterialInstanceResource* MIResource,
     const TArray<FRULShaderMaterialParameterCollection>& ParameterCollections,
     const TArray<UTexture*>& ResolveTextures,
-    int32 ParameterCollectionStartIndex
+    int32 ParameterCollectionStartIndex,
+    int32 ParameterCollectionRepeatCount
     )
 {
     check(IsInRenderingThread());
     check(MIResource != nullptr);
-    check(ParameterCollections.Num() > 0);
+    check(ParameterCollectionStartIndex > 0 || ParameterCollections.Num() > 0);
 
     const FMaterial* MaterialResource = MIResource->GetMaterial(FeatureLevel);
 
@@ -1596,8 +1818,10 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
         return;
     }
 
-    const int32 DrawCount = ParameterCollections.Num() + ParameterCollectionStartIndex;
-    const bool bIsMultiPass = DrawCount > 1;
+    const int32 ParameterCollectionCount = ParameterCollections.Num();
+    const int32 ParameterCollectionDrawCount = ParameterCollectionCount + (ParameterCollectionCount * ParameterCollectionRepeatCount);
+    const int32 TotalDrawCount = ParameterCollectionDrawCount + ParameterCollectionStartIndex;
+    const bool bIsMultiPass = TotalDrawCount > 1;
 
     // Prepare swap texture for multi-pass filter
     if (bIsMultiPass)
@@ -1680,7 +1904,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
         if (ParameterCollectionStartIndex <= 0)
         {
             BindMaterialInstanceParameterCollection(*MIResource, ParameterCollections[0]);
-            MIResource->CacheUniformExpressions_GameThread(false);
+            MIResource->CacheUniformExpressions(false);
         }
 
         SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MIResource, *View);
@@ -1704,7 +1928,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
         check(TextureRTV0 != nullptr);
         check(TextureRTV1 != nullptr);
 
-        for (int32 i=1; i<DrawCount; ++i)
+        for (int32 i=1; i<TotalDrawCount; ++i)
         {
             // Render pass
             FRHIRenderPassInfo SwapRPInfo(TextureRTV1, ERenderTargetActions::Load_Store);
@@ -1720,7 +1944,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
                 if (i >= ParameterCollectionStartIndex)
                 {
                     // Bind parameters
-                    int32 ParamId = i - ParameterCollectionStartIndex;
+                    int32 ParamId = (i - ParameterCollectionStartIndex) % ParameterCollectionCount;
                     const FRULShaderMaterialParameterCollection& Parameters(ParameterCollections[ParamId]);
                     BindMaterialInstanceParameterCollection(*MIResource, Parameters);
 
@@ -1729,7 +1953,7 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
                     UTexture* ResolveTexture = ResolveTextures[ResolveTextureId];
                     ResolveMaterialInstanceTextureParameter(*MIResource, Parameters, TEXT("__SWAP_TEXTURE__"), ResolveTexture);
 
-                    MIResource->CacheUniformExpressions_GameThread(false);
+                    MIResource->CacheUniformExpressions(false);
                     SetupMaterialParameters(RHICmdList, FeatureLevel, *VSShader, PSShader, *MIResource, *View);
                 }
 
@@ -1748,15 +1972,21 @@ void URULShaderLibrary::ApplyMultiParametersMaterial_RT(
         // Unbind vertex shader parameters
         VSShader->UnbindBuffers(RHICmdList);
 
-        // Make sure TextureRTV has the last drawn render target
-        if (TextureRTV0 != TextureRTV)
-        {
-            RHICmdList.CopyToResolveTarget(
-                TextureRTV0,
-                TextureRSV,
-                FResolveParams()
-                );
-        }
+        // Copy final drawn texture to resolve target
+        RHICmdList.CopyToResolveTarget(
+            TextureRTV0,
+            TextureRSV,
+            FResolveParams()
+            );
+    }
+    else
+    {
+        // Copy to resolve target
+        RHICmdList.CopyToResolveTarget(
+            TextureRTV,
+            TextureRSV,
+            FResolveParams()
+            );
     }
 }
 
@@ -1875,6 +2105,11 @@ void URULShaderLibrary::DrawMaterialQuad_RT(
     {
         return;
     }
+
+    // Update deferred expression cache
+
+    MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
+    FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
 
     // Create quad data SRV
 
@@ -2123,6 +2358,11 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
         return;
     }
 
+    // Update deferred expression cache
+
+    MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(FeatureLevel);
+    FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions();
+
 	// Create default render target view
 
 	FIntRect ViewRect;
@@ -2172,7 +2412,7 @@ void URULShaderLibrary::DrawMaterialPoly_RT(
     RHICmdList.EndRenderPass();
 }
 
-void URULShaderLibrary::DrawTexture(
+void URULShaderLibrary::ApplyAutoLevels(
     UObject* WorldContextObject,
     UTexture* SourceTexture,
     UTextureRenderTarget2D* RenderTarget,
@@ -2185,25 +2425,25 @@ void URULShaderLibrary::DrawTexture(
 
     if (! IsValid(World))
     {
-        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD CONTEXT OBJECT"));
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyAutoLevels() ABORTED, INVALID WORLD CONTEXT OBJECT"));
         return;
     }
     else
     if (! World->Scene)
     {
-        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID WORLD SCENE"));
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyAutoLevels() ABORTED, INVALID WORLD SCENE"));
         return;
     }
     else
     if (! IsValid(SourceTexture))
     {
-        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID TEXTURE"));
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyAutoLevels() ABORTED, INVALID TEXTURE"));
         return;
     }
     else
     if (! IsValid(RenderTarget))
     {
-        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET"));
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyAutoLevels() ABORTED, INVALID RENDER TARGET"));
         return;
     }
 
@@ -2211,7 +2451,7 @@ void URULShaderLibrary::DrawTexture(
 
     if (! RenderTargetResource)
     {
-        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::DrawTexture() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
+        UE_LOG(LogRUL,Warning, TEXT("URULShaderLibrary::ApplyAutoLevels() ABORTED, INVALID RENDER TARGET TEXTURE RESOURCE"));
         return;
     }
 
@@ -2220,28 +2460,28 @@ void URULShaderLibrary::DrawTexture(
     struct FRenderParameter
     {
         ERHIFeatureLevel::Type FeatureLevel;
-        FTextureRenderTarget2DResource* RenderTargetResource;
         FTexture* SourceTexture;
+        FTextureRenderTarget2DResource* RenderTargetResource;
         FRULShaderDrawConfig DrawConfig;
         UGWTTickEvent* CallbackEvent;
     };
 
     FRenderParameter RenderParameter = {
         World->Scene->GetFeatureLevel(),
-        RenderTargetResource,
         SourceTexture->Resource,
+        RenderTargetResource,
         DrawConfig,
         CallbackEvent
         };
 
-    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_DrawTexture)(
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_ApplyAutoLevels)(
         [RenderParameter](FRHICommandListImmediate& RHICmdList)
         {
-            URULShaderLibrary::DrawTexture_RT(
+            URULShaderLibrary::ApplyAutoLevels_RT(
                 RHICmdList,
                 RenderParameter.FeatureLevel,
-                RenderParameter.RenderTargetResource,
                 RenderParameter.SourceTexture,
+                RenderParameter.RenderTargetResource,
                 RenderParameter.DrawConfig
                 );
             FGWTTickEventRef(RenderParameter.CallbackEvent).EnqueueCallback();
@@ -2249,98 +2489,107 @@ void URULShaderLibrary::DrawTexture(
     );
 }
 
-void URULShaderLibrary::DrawTexture_RT(
+void URULShaderLibrary::ApplyAutoLevels_RT(
     FRHICommandListImmediate& RHICmdList,
     ERHIFeatureLevel::Type FeatureLevel,
-    FTextureRenderTarget2DResource* RenderTargetResource,
     FTexture* SourceTexture,
+    FTextureRenderTarget2DResource* RenderTargetResource,
     FRULShaderDrawConfig DrawConfig
     )
 {
     check(IsInRenderingThread());
 
-    if (! RenderTargetResource || ! SourceTexture)
+    if (! SourceTexture || ! RenderTargetResource)
     {
         return;
     }
 
-    // Prepare render target texture and resolve target
     FTextureRHIParamRef TextureRTV = RenderTargetResource->GetRenderTargetTexture();
+    FTextureRHIParamRef SourceTextureRHI = SourceTexture->TextureRHI;
 
-    if (! TextureRTV)
+    if (! TextureRTV || ! SourceTextureRHI)
     {
         return;
     }
 
-    // Setup viewport
-    FIntPoint SizeXY(RenderTargetResource->GetSizeXY());
-	FIntRect ViewRect(FIntPoint(0, 0), SizeXY);
-    RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, ViewRect.Max.X, ViewRect.Max.Y, 1.0f);
+    FIntVector DimensionXYZ = SourceTextureRHI->GetSizeXYZ();
+    FIntPoint Dimension(DimensionXYZ.X, DimensionXYZ.Y);
 
-    // Safe check render pass
-    GetRendererModule().InitializeSystemTextures(RHICmdList);
-    check(RHICmdList.IsOutsideRenderPass());
+    TResourceArray<FVector4, VERTEXBUFFER_ALIGNMENT> DefaultSumData(false);
+    DefaultSumData.SetNumZeroed(2);
 
-    // Render pass with the specified render target
-    FRHIRenderPassInfo RPInfo(TextureRTV, ERenderTargetActions::Load_Store);
-    TransitionRenderPassTargets(RHICmdList, RPInfo);
-    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_DrawTexture"));
+    FRULRWBufferStructured SumData;
+    SumData.Initialize(sizeof(FVector4), 2, &DefaultSumData, BUF_Static);
+
+    const int32 ScanBlockCount = FRULReduceScan::ReduceTexture(
+        RHICmdList,
+        SourceTextureRHI,
+        SumData,
+        Dimension,
+        1,
+        false,
+        BUF_Static
+        );
+
+#if 0
+    UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+    if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
     {
-		float Gamma = 1.0f / RenderTargetResource->GetDisplayGamma();
-		bool bNeedsToSwitchVerticalAxis = !RHINeedsToSwitchVerticalAxis(GShaderPlatformForFeatureLevel[FeatureLevel]);
+        const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
 
-        // Prepare view
-        FSceneView SceneView(FBatchedElements::CreateProxySceneView(FMatrix::Identity, ViewRect));
-        FMeshPassProcessorRenderState DrawRenderState(SceneView);
+        TArray<FVector4> SumArr;
+        SumArr.SetNumUninitialized(SumDataCount);
 
-        // Set blend state and disable depth test & writes
-        SetupDefaultRenderState(DrawRenderState, DrawConfig);
+        void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+        FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+        RHIUnlockStructuredBuffer(SumData.Buffer);
 
-        // Construct and draw batched elements
+        UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
 
-        FBatchedElements BatchedElements;
-
+        for (int32 i=0; i<SumDataCount; ++i)
         {
-            float L = -1.f;
-            float T = -1.f;
-            float R =  1.f;
-            float B =  1.f;
-            FVector2D UV0(0.f, 0.f);
-            FVector2D UV1(1.f, 1.f);
-            int32 V00 = BatchedElements.AddVertex(
-                FVector4(L, T, 0.f, 1.f),
-                FVector2D(UV0.X, UV0.Y),
-                FLinearColor::White,
-                FHitProxyId::InvisibleHitProxyId );
-            int32 V10 = BatchedElements.AddVertex(
-                FVector4(R, T, 0.f, 1.f),
-                FVector2D(UV1.X, UV0.Y),
-                FLinearColor::White,
-                FHitProxyId::InvisibleHitProxyId );
-            int32 V01 = BatchedElements.AddVertex(
-                FVector4(L, B, 0.f, 1.f),
-                FVector2D(UV0.X, UV1.Y),		
-                FLinearColor::White,
-                FHitProxyId::InvisibleHitProxyId );
-            int32 V11 = BatchedElements.AddVertex(
-                FVector4(R,	B, 0.f, 1.f),
-                FVector2D(UV1.X, UV1.Y),
-                FLinearColor::White,
-                FHitProxyId::InvisibleHitProxyId );
-
-            BatchedElements.AddTriangle(V00, V10, V11, SourceTexture, SE_BLEND_Opaque);
-            BatchedElements.AddTriangle(V00, V11, V01, SourceTexture, SE_BLEND_Opaque);
+            UE_LOG(LogTemp,Warning, TEXT("Scan Result [%d]: %s"), i, *SumArr[i].ToString());
         }
+    }
+#endif
 
-        BatchedElements.Draw(
-            RHICmdList,
-            DrawRenderState,
-            FeatureLevel,
-            bNeedsToSwitchVerticalAxis,
-            SceneView,
-            false,
-            Gamma
-            );
+    // Prepare graphics pipelane
+
+    TShaderMapRef<FRULShaderDrawScreenVS> VSShader(GetGlobalShaderMap(FeatureLevel));
+    TShaderMapRef<FRULShaderAutoLevelPS> PSShader(GetGlobalShaderMap(FeatureLevel));
+
+    FGraphicsPipelineStateInitializer GraphicsPSOInit;
+    SetupDefaultGraphicsPSOInit(GraphicsPSOInit, PT_TriangleStrip, DrawConfig);
+    GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GetVertexDeclarationFVector4();
+    GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GETSAFERHISHADER_VERTEX(*VSShader);
+    GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PSShader->GetPixelShader();
+
+    // Render pass
+
+    FRHIRenderPassInfo RPInfo(TextureRTV, GetRenderTargetActions(DrawConfig));
+    TransitionRenderPassTargets(RHICmdList, RPInfo);
+    RHICmdList.BeginRenderPass(RPInfo, TEXT("RULShaderLibrary_AutoLevel"));
+    {
+        // Set graphics pipeline
+
+        RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+        SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
+
+        // Bind shader parameters
+
+        PSShader->BindTexture(RHICmdList, TEXT("SourceTexture"), SourceTextureRHI);
+        PSShader->BindSRV(RHICmdList, TEXT("AutoLevelData"), SumData.SRV);
+
+        // Draw primitives
+
+        RHICmdList.SetStreamSource(0, GetFilterShaderVB(), 0);
+        RHICmdList.DrawPrimitive(0, 2, 1);
+
+        // Unbind shader parameters
+
+        VSShader->UnbindBuffers(RHICmdList);
+        PSShader->UnbindBuffers(RHICmdList);
     }
     RHICmdList.EndRenderPass();
 }
@@ -2550,7 +2799,7 @@ void URULShaderLibrary::ConvertPointToScreenCoordinate(FVector2D Point, FVector2
     ScreenPoint = DrawOffset + Point*DrawScale;
 }
 
-void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCount, UGWTTickEvent* CallbackEvent)
+void URULShaderLibrary::TestPrefixSumScan(UObject* WorldContextObject, int32 TestCount, UGWTTickEvent* CallbackEvent)
 {
 	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 
@@ -2559,7 +2808,7 @@ void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCo
         return;
     }
 
-    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestGPUCompute)(
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestPrefixSumScan)(
 		[TestCount](FRHICommandListImmediate& RHICmdList)
 		{
             check(IsInRenderingThread());
@@ -2582,6 +2831,7 @@ void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCo
                 );
 
             const int32 ScanBlockCount = FRULPrefixSumScan::ExclusiveScan<1>(
+                RHICmdList,
                 SourceData.SRV,
                 sizeof(FResourceType::ElementType),
                 TestCount,
@@ -2609,5 +2859,625 @@ void URULShaderLibrary::TestGPUCompute(UObject* WorldContextObject, int32 TestCo
                 UE_LOG(LogTemp,Warning, TEXT("ScanSum: %d"), ScanSum);
             }
 		}
-    ); // RULShaderLibrary_TestGPUCompute
+    ); // RULShaderLibrary_TestPrefixSumScan
+}
+
+void URULShaderLibrary::TestReduceScan1D(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    float MaxValue,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValue, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<float, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            float SourceMax = 0.f;
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i] = Rand.GetFraction() * MaxValue;
+
+                    if (SourceMax < SourceArr[i])
+                    {
+                        SourceMax = SourceArr[i];
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax %d: %f"), i, SourceMax);
+                    }
+                }
+            }
+            else
+            {
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = MaxValue;
+                SourceMax = MaxValue;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_FLOAT1>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: %f"), ScanSum);
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: %f"), SourceMax);
+		}
+    ); // RULShaderLibrary_TestReduceScan
+}
+
+void URULShaderLibrary::TestReduceScan2D(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    float MaxValue,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValue, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<FRULAlignedVector2D, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            FVector2D SourceMax(0.f, 0.f);
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i].X = Rand.GetFraction() * MaxValue;
+                    SourceArr[i].Y = Rand.GetFraction() * MaxValue;
+
+                    if (SourceMax.X < SourceArr[i].X)
+                    {
+                        SourceMax.X = SourceArr[i].X;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.X %d: %f"), i, SourceMax.X);
+                    }
+
+                    if (SourceMax.Y < SourceArr[i].Y)
+                    {                             
+                        SourceMax.Y = SourceArr[i].Y;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Y %d: %f"), i, SourceMax.Y);
+                    }
+                }
+            }
+            else
+            {
+                SourceMax = FVector2D(MaxValue, MaxValue);
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = SourceMax;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_FLOAT2>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: %s"), *ScanSum.ToString());
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: %s"), *SourceMax.ToString());
+		}
+    ); // RULShaderLibrary_TestReduceScan
+}
+
+void URULShaderLibrary::TestReduceScan4D(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    float MaxValue,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValue, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<FVector4, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            FVector4 SourceMax(0.f, 0.f, 0.f, 0.f);
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i].X = Rand.GetFraction() * MaxValue;
+                    SourceArr[i].Y = Rand.GetFraction() * MaxValue;
+                    SourceArr[i].Z = Rand.GetFraction() * MaxValue;
+                    SourceArr[i].W = Rand.GetFraction() * MaxValue;
+
+                    if (SourceMax.X < SourceArr[i].X)
+                    {
+                        SourceMax.X = SourceArr[i].X;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.X %d: %f"), i, SourceMax.X);
+                    }
+
+                    if (SourceMax.Y < SourceArr[i].Y)
+                    {                             
+                        SourceMax.Y = SourceArr[i].Y;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Y %d: %f"), i, SourceMax.Y);
+                    }
+
+                    if (SourceMax.Z < SourceArr[i].Z)
+                    {
+                        SourceMax.Z = SourceArr[i].Z;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Z %d: %f"), i, SourceMax.Z);
+                    }
+
+                    if (SourceMax.W < SourceArr[i].W)
+                    {                             
+                        SourceMax.W = SourceArr[i].W;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.W %d: %f"), i, SourceMax.W);
+                    }
+                }
+            }
+            else
+            {
+                SourceMax = FVector4(MaxValue, MaxValue, MaxValue, MaxValue);
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = SourceMax;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_FLOAT4>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: %s"), *ScanSum.ToString());
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: %s"), *SourceMax.ToString());
+		}
+    ); // RULShaderLibrary_TestReduceScan
+}
+
+void URULShaderLibrary::TestReduceScan1DUint(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<uint32, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            uint32 SourceMax = 0;
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i] = Rand.GetUnsignedInt();
+
+                    if (SourceMax < SourceArr[i])
+                    {
+                        SourceMax = SourceArr[i];
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax %d: %u"), i, SourceMax);
+                    }
+                }
+            }
+            else
+            {
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = 0xFF;
+                SourceMax = 0xFF;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_UINT1>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: %u"), ScanSum);
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: %u"), SourceMax);
+		}
+    ); // RULShaderLibrary_TestReduceScan
+}
+
+void URULShaderLibrary::TestReduceScan2DUint(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<FRULAlignedUintPoint, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            FRULAlignedUintPoint SourceMax;
+            SourceMax.X = 0;
+            SourceMax.Y = 0;
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i].X = Rand.GetUnsignedInt();
+                    SourceArr[i].Y = Rand.GetUnsignedInt();
+
+                    if (SourceMax.X < SourceArr[i].X)
+                    {
+                        SourceMax.X = SourceArr[i].X;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.X %d: %u"), i, SourceMax.X);
+                    }
+
+                    if (SourceMax.Y < SourceArr[i].Y)
+                    {                             
+                        SourceMax.Y = SourceArr[i].Y;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Y %d: %u"), i, SourceMax.Y);
+                    }
+                }
+            }
+            else
+            {
+                SourceMax.X = 255;
+                SourceMax.Y = 255;
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = SourceMax;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_UINT2>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: %u %u"), SourceMax.X, SourceMax.Y);
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: %u, %u"), SourceMax.X, SourceMax.Y);
+		}
+    ); // RULShaderLibrary_TestReduceScan
+}
+
+void URULShaderLibrary::TestReduceScan4DUint(
+    UObject* WorldContextObject,
+    int32 Seed,
+    int32 TestCount,
+    int32 MaxValueIndex,
+    bool bRandomizeIndex,
+    UGWTTickEvent* CallbackEvent
+    )
+{
+	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+    if (! World || TestCount < 1)
+    {
+        return;
+    }
+
+    ENQUEUE_RENDER_COMMAND(RULShaderLibrary_TestReduceScan)(
+		[Seed, TestCount, MaxValueIndex, bRandomizeIndex](FRHICommandListImmediate& RHICmdList)
+		{
+            check(IsInRenderingThread());
+
+            FRULRWBufferStructured SourceData;
+            FRULRWBufferStructured SumData;
+
+            typedef TResourceArray<FRULAlignedUintVector4, VERTEXBUFFER_ALIGNMENT> FResourceType;
+
+            FResourceType SourceArr(false);
+            SourceArr.SetNumZeroed(TestCount);
+
+            FRULAlignedUintVector4 SourceMax(0, 0, 0, 0);
+
+            if (bRandomizeIndex)
+            {
+                FRandomStream Rand(Seed);
+
+                for (int32 i=0; i<TestCount; ++i)
+                {
+                    SourceArr[i].X = Rand.GetUnsignedInt();
+                    SourceArr[i].Y = Rand.GetUnsignedInt();
+                    SourceArr[i].Z = Rand.GetUnsignedInt();
+                    SourceArr[i].W = Rand.GetUnsignedInt();
+
+                    if (SourceMax.X < SourceArr[i].X)
+                    {
+                        SourceMax.X = SourceArr[i].X;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.X %d: %u"), i, SourceMax.X);
+                    }
+
+                    if (SourceMax.Y < SourceArr[i].Y)
+                    {                             
+                        SourceMax.Y = SourceArr[i].Y;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Y %d: %u"), i, SourceMax.Y);
+                    }
+
+                    if (SourceMax.Z < SourceArr[i].Z)
+                    {
+                        SourceMax.Z = SourceArr[i].Z;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.Z %d: %u"), i, SourceMax.Z);
+                    }
+
+                    if (SourceMax.W < SourceArr[i].W)
+                    {                             
+                        SourceMax.W = SourceArr[i].W;
+                        UE_LOG(LogTemp,Warning, TEXT("SourceMax.W %d: %u"), i, SourceMax.W);
+                    }
+                }
+            }
+            else
+            {
+                SourceMax = FRULAlignedUintVector4(255, 255, 255, 255);
+                SourceArr[FMath::Clamp(MaxValueIndex, 0, TestCount-1)] = SourceMax;
+            }
+
+            SourceData.Initialize(
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                &SourceArr,
+                BUF_Static,
+                TEXT("SourceData")
+                );
+
+            const int32 ScanBlockCount = FRULReduceScan::Reduce<FRULReduceScan::SDT_UINT4>(
+                RHICmdList,
+                SourceData.SRV,
+                SumData,
+                sizeof(FResourceType::ElementType),
+                TestCount,
+                BUF_Static
+                );
+
+            UE_LOG(LogTemp,Warning, TEXT("ScanBlockCount: %d"), ScanBlockCount);
+
+            if (SumData.Buffer->GetStride() > 0 && ScanBlockCount > 0)
+            {
+                const int32 SumDataCount = SumData.Buffer->GetSize() / SumData.Buffer->GetStride();
+
+                FResourceType SumArr;
+                SumArr.SetNumUninitialized(SumDataCount);
+
+                void* SumDataPtr = RHILockStructuredBuffer(SumData.Buffer, 0, SumData.Buffer->GetSize(), RLM_ReadOnly);
+                FMemory::Memcpy(SumArr.GetData(), SumDataPtr, SumData.Buffer->GetSize());
+                RHIUnlockStructuredBuffer(SumData.Buffer);
+
+                FResourceType::ElementType ScanSum = SumArr[0];
+
+                UE_LOG(LogTemp,Warning, TEXT("SumDataCount: %d"), SumDataCount);
+                UE_LOG(LogTemp,Warning, TEXT("Scan Result: (X: %u, Y: %u, Z: %u, W: %u)"), ScanSum.X, ScanSum.Y, ScanSum.Z, ScanSum.W);
+            }
+
+            UE_LOG(LogTemp,Warning, TEXT("Max Value: (X: %u, Y: %u, Z: %u, W: %u)"), SourceMax.X, SourceMax.Y, SourceMax.Z, SourceMax.W);
+		}
+    ); // RULShaderLibrary_TestReduceScan
 }

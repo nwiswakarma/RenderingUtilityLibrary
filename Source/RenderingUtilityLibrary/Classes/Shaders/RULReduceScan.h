@@ -28,98 +28,94 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RHIResources.h"
 #include "RHI/RULRHIBuffer.h"
 
 class FRHICommandListImmediate;
 
-class RENDERINGUTILITYLIBRARY_API FRULPrefixSumScan
+class RENDERINGUTILITYLIBRARY_API FRULReduceScan
 {
 public:
 
+    enum FScanDataType
+    {
+        SDT_UINT1 = 0x01,
+        SDT_UINT2 = 0x02,
+        SDT_UINT4 = 0x04,
+        SDT_FLOAT1 = 0x11,
+        SDT_FLOAT2 = 0x12,
+        SDT_FLOAT4 = 0x14
+    };
+
+    enum FScanOpType
+    {
+        SOT_Max,
+        SOT_Min
+    };
+
     const static int32 BLOCK_SIZE  = 128;
     const static int32 BLOCK_SIZE2 = 256;
+
+    const static int32 TEX_BLOCK  = 8;
+    const static int32 TEX_BLOCK2 = 16;
 
     FORCEINLINE static int32 GetBlockOffsetForSize(int32 ElementCount)
     {
         return FPlatformMath::RoundUpToPowerOfTwo(FMath::DivideAndRoundUp(ElementCount, BLOCK_SIZE2));
     }
 
-    template<uint32 ScanDimension>
-    static const TCHAR* GetScanDimensionName()
+    template<uint32 ScanDataType>
+    static FString GetScanDataTypeName()
     {
-        switch (ScanDimension)
+        FString DataType(TEXT("uint"));
+        int32 Dimension = 1;
+        switch (ScanDataType & 0x0F)
         {
-            case 1: return TEXT("uint");
-            case 2: return TEXT("uint2");
-            case 4: return TEXT("uint4");
-            default:
-                return TEXT("uint");
+            case 1: Dimension = 1; break;
+            case 2: Dimension = 2; break;
+            case 4: Dimension = 4; break;
         }
+        switch ((ScanDataType>>4) & 0x0F)
+        {
+            case 0: DataType = TEXT("uint"); break;
+            case 1: DataType = TEXT("float"); break;
+        }
+        return DataType + FString::FromInt(Dimension);
     }
 
-    template<uint32 ScanDimension>
-    static bool IsValidScanDimension()
+    template<uint32 ScanDataType>
+    static bool IsValidScanDataType()
     {
-        switch (ScanDimension)
+        switch (ScanDataType)
         {
-            case 1:
-            case 2:
-            case 4:
+            case SDT_UINT1:
+            case SDT_UINT2:
+            case SDT_UINT4:
+            case SDT_FLOAT1:
+            case SDT_FLOAT2:
+            case SDT_FLOAT4:
                 return true;
-
-            default:
-                return false;
         }
+        return false;
     }
 
-    template<uint32 ScanDimension>
-    static int32 ExclusiveScan(
+    template<uint32 ScanDataType>
+    static int32 Reduce(
         FRHICommandListImmediate& RHICmdList,
         FShaderResourceViewRHIParamRef SrcDataSRV,
+        FRULRWBufferStructured& ResultBuffer,
         int32 DataStride,
         int32 ElementCount,
-        FRULRWBufferStructured& ScanResult,
-        FRULRWBufferStructured& SumBuffer,
+        uint32 AdditionalOutputUsage = 0
+        );
+
+    static int32 ReduceTexture(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRHIParamRef SourceTexture,
+        FRULRWBufferStructured& ResultBuffer,
+        FIntPoint Dimension,
+        int32 ResultIndex = 0,
+        bool bInitializeResultBuffer = true,
         uint32 AdditionalOutputUsage = 0
         );
 };
-
-#define DECLARE_SCAN_PARAMS\
-    FRHICommandListImmediate& RHICmdList,\
-    FShaderResourceViewRHIParamRef SrcDataSRV,\
-    int32 DataStride,\
-    int32 ElementCount,\
-    FRULRWBufferStructured& ScanResult,\
-    FRULRWBufferStructured& SumBuffer,\
-    uint32 AdditionalOutputUsage = 0
-
-#define DECLARE_SCAN_ARGS\
-    RHICmdList,\
-    SrcDataSRV,\
-    DataStride,\
-    ElementCount,\
-    ScanResult,\
-    SumBuffer,\
-    AdditionalOutputUsage
-
-#define IMPLEMENT_SCAN_FUNCTION(VN)\
-    static int32 ExclusiveScan(DECLARE_SCAN_PARAMS)\
-    {\
-        return FRULPrefixSumScan::ExclusiveScan<VN>(DECLARE_SCAN_ARGS);\
-    }
-
-#define IMPLEMENT_SCAN_TYPE(VN)                             \
-class RENDERINGUTILITYLIBRARY_API FRULPrefixSumScan##VN##D  \
-{                                                           \
-public:                                                     \
-    IMPLEMENT_SCAN_FUNCTION(VN)                             \
-};
-
-IMPLEMENT_SCAN_TYPE(1)
-IMPLEMENT_SCAN_TYPE(2)
-IMPLEMENT_SCAN_TYPE(4)
-
-#undef IMPLEMENT_SCAN_TYPE
-#undef IMPLEMENT_SCAN_FUNCTION
-#undef DECLARE_SCAN_ARGS
-#undef DECLARE_SCAN_PARAMS
