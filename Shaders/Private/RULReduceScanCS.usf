@@ -75,7 +75,7 @@ uint _BlockCount;
 uint _ScanBlockCount;
 uint _ResultIndex;
 
-Texture2D<float4> SourceTexture;
+Texture2D<data_t> SourceTexture;
 StructuredBuffer<data_t> SrcData;
 RWStructuredBuffer<data_t> SumData;
 

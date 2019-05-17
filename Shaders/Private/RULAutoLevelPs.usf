@@ -43,11 +43,13 @@ void AutoLevelPS(
     float4 LevelMax = AutoLevelData[1];
     float4 LevelRange = (LevelMax-LevelMin);
 
-    float4 Texture = Texture2DSample(SourceTexture, SourceTextureSampler, Input.UV).r;
+    float4 Texture = Texture2DSample(SourceTexture, SourceTextureSampler, Input.UV);
 
     float4 LevelMask = LevelRange > .0001f;
     float4 LevelRangeValid = max(LevelRange, .0001f);
 
     OutColor = (Texture-LevelMin) / LevelRangeValid;
     OutColor *= LevelMask;
+
+    OutColor.a = LevelMask.a ? OutColor.a : 1.f;
 }
