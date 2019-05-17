@@ -49,8 +49,8 @@ public:
 
     enum FScanOpType
     {
-        SOT_Max,
-        SOT_Min
+        SOT_Max = 0,
+        SOT_Min = 1
     };
 
     const static int32 BLOCK_SIZE  = 128;
@@ -100,6 +100,18 @@ public:
     }
 
     template<uint32 ScanDataType>
+    static bool IsValidScanOpType()
+    {
+        switch (ScanDataType)
+        {
+            case SOT_Max:
+            case SOT_Min:
+                return true;
+        }
+        return false;
+    }
+
+    template<uint32 ScanDataType, uint32 ScanOpType = SOT_Max>
     static int32 Reduce(
         FRHICommandListImmediate& RHICmdList,
         FShaderResourceViewRHIParamRef SrcDataSRV,
@@ -109,6 +121,7 @@ public:
         uint32 AdditionalOutputUsage = 0
         );
 
+    template<uint32 ScanOpType>
     static int32 ReduceTexture(
         FRHICommandListImmediate& RHICmdList,
         FTextureRHIParamRef SourceTexture,

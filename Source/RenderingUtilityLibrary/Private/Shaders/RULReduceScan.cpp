@@ -34,7 +34,7 @@
 #include "RHI/RULAlignedTypes.h"
 #include "Shaders/RULShaderDefinitions.h"
 
-template<uint32 ScanDataType>
+template<uint32 ScanDataType, uint32 ScanOpType>
 class FRULReduceLocalScanCS : public FRULBaseComputeShader<>
 {
     typedef FRULBaseComputeShader<> FBaseType;
@@ -51,6 +51,7 @@ class FRULReduceLocalScanCS : public FRULBaseComputeShader<>
         FBaseType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
         OutEnvironment.CompilerFlags.Add(CFLAG_StandardOptimization);
         OutEnvironment.SetDefine(TEXT("data_t"), *FRULReduceScan::GetScanDataTypeName<ScanDataType>());
+        OutEnvironment.SetDefine(TEXT("REDUCE_OP"), ScanOpType);
     }
 
     RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER(FRULReduceLocalScanCS)
@@ -77,7 +78,7 @@ class FRULReduceLocalScanCS : public FRULBaseComputeShader<>
         )
 };
 
-template<uint32 ScanDataType>
+template<uint32 ScanDataType, uint32 ScanOpType>
 class FRULReduceTextureLocalScanCS : public FRULBaseComputeShader<>
 {
     typedef FRULBaseComputeShader<> FBaseType;
@@ -94,6 +95,7 @@ class FRULReduceTextureLocalScanCS : public FRULBaseComputeShader<>
         FBaseType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
         OutEnvironment.CompilerFlags.Add(CFLAG_StandardOptimization);
         OutEnvironment.SetDefine(TEXT("data_t"), *FRULReduceScan::GetScanDataTypeName<ScanDataType>());
+        OutEnvironment.SetDefine(TEXT("REDUCE_OP"), ScanOpType);
     }
 
     RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER_WITH_TEXTURE(FRULReduceTextureLocalScanCS)
@@ -124,54 +126,7 @@ class FRULReduceTextureLocalScanCS : public FRULBaseComputeShader<>
         )
 };
 
-template<uint32 ScanDataType>
-class FRULReduceDebugWriteTextureValueCS : public FRULBaseComputeShader<>
-{
-    typedef FRULBaseComputeShader<> FBaseType;
-
-    DECLARE_SHADER_TYPE(FRULReduceDebugWriteTextureValueCS, Global);
-
-    static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-    {
-        return RHISupportsComputeShaders(Parameters.Platform);
-    }
-
-    static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-    {
-        FBaseType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-        OutEnvironment.CompilerFlags.Add(CFLAG_StandardOptimization);
-        OutEnvironment.SetDefine(TEXT("data_t"), *FRULReduceScan::GetScanDataTypeName<ScanDataType>());
-    }
-
-    RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER_WITH_TEXTURE(FRULReduceDebugWriteTextureValueCS)
-
-    RUL_DECLARE_SHADER_PARAMETERS_1(
-        Texture,
-        FShaderResourceParameter,
-        FResourceId,
-        "SourceTexture", SourceTexture
-        )
-
-    RUL_DECLARE_SHADER_PARAMETERS_0(Sampler,,)
-
-    RUL_DECLARE_SHADER_PARAMETERS_0(SRV,,)
-
-    RUL_DECLARE_SHADER_PARAMETERS_1(
-        UAV,
-        FShaderResourceParameter,
-        FResourceId,
-        "SumData", SumData
-        )
-
-    RUL_DECLARE_SHADER_PARAMETERS_1(
-        Value,
-        FShaderParameter,
-        FParameterId,
-        "_Dimension", Params_Dimension
-        )
-};
-
-template<uint32 ScanDataType>
+template<uint32 ScanDataType, uint32 ScanOpType>
 class FRULReduceTopLevelScanCS : public FRULBaseComputeShader<>
 {
     typedef FRULBaseComputeShader<> FBaseType;
@@ -188,6 +143,7 @@ class FRULReduceTopLevelScanCS : public FRULBaseComputeShader<>
         FBaseType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
         OutEnvironment.CompilerFlags.Add(CFLAG_StandardOptimization);
         OutEnvironment.SetDefine(TEXT("data_t"), *FRULReduceScan::GetScanDataTypeName<ScanDataType>());
+        OutEnvironment.SetDefine(TEXT("REDUCE_OP"), ScanOpType);
     }
 
     RUL_DECLARE_SHADER_CONSTRUCTOR_SERIALIZER(FRULReduceTopLevelScanCS)
@@ -260,11 +216,13 @@ class FRULWriteScanResultCS : public FRULBaseComputeShader<>
 #define SCAN_KERNEL2(N,VN,T) N<VN,T>
 
 #define IMPLEMENT_SCAN_SHADER(VN) \
-IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL1(FRULReduceLocalScanCS,VN), TEXT(SHADER_FILENAME), TEXT("LocalScanKernel"), SF_Compute);\
-IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL1(FRULReduceTextureLocalScanCS,VN), TEXT(SHADER_FILENAME), TEXT("TextureLocalScanKernel"), SF_Compute);\
-IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL1(FRULReduceTopLevelScanCS,VN), TEXT(SHADER_FILENAME), TEXT("TopLevelScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceLocalScanCS,VN,0), TEXT(SHADER_FILENAME), TEXT("LocalScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceLocalScanCS,VN,1), TEXT(SHADER_FILENAME), TEXT("LocalScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceTextureLocalScanCS,VN,0), TEXT(SHADER_FILENAME), TEXT("TextureLocalScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceTextureLocalScanCS,VN,1), TEXT(SHADER_FILENAME), TEXT("TextureLocalScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceTopLevelScanCS,VN,0), TEXT(SHADER_FILENAME), TEXT("TopLevelScanKernel"), SF_Compute);\
+IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL2(FRULReduceTopLevelScanCS,VN,1), TEXT(SHADER_FILENAME), TEXT("TopLevelScanKernel"), SF_Compute);\
 IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL1(FRULWriteScanResultCS,VN), TEXT(SHADER_FILENAME), TEXT("WriteScanResultKernel"), SF_Compute);\
-IMPLEMENT_SHADER_TYPE(template<>, SCAN_KERNEL1(FRULReduceDebugWriteTextureValueCS,VN), TEXT(SHADER_FILENAME), TEXT("WriteTextureValueKernel"), SF_Compute);\
 
 IMPLEMENT_SCAN_SHADER(FRULReduceScan::SDT_UINT1)
 IMPLEMENT_SCAN_SHADER(FRULReduceScan::SDT_UINT2)
@@ -279,7 +237,7 @@ IMPLEMENT_SCAN_SHADER(FRULReduceScan::SDT_FLOAT4)
 #undef SCAN_KERNEL2
 #undef SHADER_FILENAME
 
-template<uint32 ScanDataType>
+template<uint32 ScanDataType, uint32 ScanOpType>
 int32 FRULReduceScan::Reduce(
     FRHICommandListImmediate& RHICmdList,
     FShaderResourceViewRHIParamRef SrcDataSRV,
@@ -291,6 +249,7 @@ int32 FRULReduceScan::Reduce(
 {
     check(IsInRenderingThread());
     check(IsValidScanDataType<ScanDataType>());
+    check(IsValidScanOpType<ScanOpType>());
 
     if (ElementCount < 1)
     {
@@ -334,7 +293,7 @@ int32 FRULReduceScan::Reduce(
     // Local scan kernel
 
     RHICmdList.BeginComputePass(TEXT("RULReduceLocalScan"));
-    TShaderMapRef<FRULReduceLocalScanCS<ScanDataType>> LocalScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+    TShaderMapRef<FRULReduceLocalScanCS<ScanDataType, ScanOpType>> LocalScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
     LocalScanCS->SetShader(RHICmdList);
     LocalScanCS->BindSRV(RHICmdList, TEXT("SrcData"), SrcDataSRV);
     LocalScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBuffer.UAV);
@@ -353,7 +312,7 @@ int32 FRULReduceScan::Reduce(
         // Block sum scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceLocalScan"));
-        TShaderMapRef<FRULReduceLocalScanCS<ScanDataType>> BlockScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceLocalScanCS<ScanDataType, ScanOpType>> BlockScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         BlockScanCS->SetShader(RHICmdList);
         BlockScanCS->BindSRV(RHICmdList, TEXT("SrcData"), SumBuffer.SRV);
         BlockScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBlockBuffer.UAV);
@@ -365,7 +324,7 @@ int32 FRULReduceScan::Reduce(
         // Block sum top level scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceTopLevelScan"));
-        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType, ScanOpType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBlockBuffer.UAV);
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_BlockCount"), BlockGroupCount);
@@ -391,7 +350,7 @@ int32 FRULReduceScan::Reduce(
         // Top level scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceTopLevelScan"));
-        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType, ScanOpType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBuffer.UAV);
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_BlockCount"), BlockCount);
@@ -416,6 +375,7 @@ int32 FRULReduceScan::Reduce(
     return ScanBlockCount;
 }
 
+template<uint32 ScanOpType>
 int32 FRULReduceScan::ReduceTexture(
     FRHICommandListImmediate& RHICmdList,
     FTextureRHIParamRef SourceTexture,
@@ -491,52 +451,14 @@ int32 FRULReduceScan::ReduceTexture(
     // Local scan kernel
 
     RHICmdList.BeginComputePass(TEXT("RULReduceTextureLocalScan"));
-    TShaderMapRef<FRULReduceTextureLocalScanCS<ScanDataType>> LocalScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+    TShaderMapRef<FRULReduceTextureLocalScanCS<ScanDataType, ScanOpType>> LocalScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
     LocalScanCS->SetShader(RHICmdList);
     LocalScanCS->BindTexture(RHICmdList, TEXT("SourceTexture"), SourceTexture);
     LocalScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBuffer.UAV);
     LocalScanCS->SetParameter(RHICmdList, TEXT("_Dimension"), DimensionData);
     DispatchComputeShader(RHICmdList, *LocalScanCS, BlockCount, 1, 1);
-    //DispatchComputeShader(RHICmdList, *LocalScanCS, TexDispatchX, TexDispatchY, 1);
     LocalScanCS->UnbindBuffers(RHICmdList);
     RHICmdList.EndComputePass();
-
-#if 0
-    {
-        FRULRWBufferStructured DebugBuffer;
-        TResourceArray<FVector4, VERTEXBUFFER_ALIGNMENT> DefaultSumData(false);
-        DefaultSumData.SetNumZeroed(ElementCount);
-        DebugBuffer.Initialize(DataStride, ElementCount, &DefaultSumData);
-
-        RHICmdList.BeginComputePass(TEXT("RULReduceDebugWriteTextureValueScan"));
-        TShaderMapRef<FRULReduceDebugWriteTextureValueCS<ScanDataType>> DebugCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
-        DebugCS->SetShader(RHICmdList);
-        DebugCS->BindTexture(RHICmdList, TEXT("SourceTexture"), SourceTexture);
-        DebugCS->BindUAV(RHICmdList, TEXT("SumData"), DebugBuffer.UAV);
-        DebugCS->SetParameter(RHICmdList, TEXT("_Dimension"), Dimension);
-        //DispatchComputeShader(RHICmdList, *DebugCS, BlockCount, 1, 1);
-        DispatchComputeShader(RHICmdList, *DebugCS, TexDispatchX, TexDispatchY, 1);
-        DebugCS->UnbindBuffers(RHICmdList);
-        RHICmdList.EndComputePass();
-
-        if (DebugBuffer.Buffer->GetStride() > 0)
-        {
-            const int32 SumDataCount = DebugBuffer.Buffer->GetSize() / DebugBuffer.Buffer->GetStride();
-
-            TArray<FVector4> SumArr;
-            SumArr.SetNumZeroed(SumDataCount);
-
-            void* SumDataPtr = RHILockStructuredBuffer(DebugBuffer.Buffer, 0, DebugBuffer.Buffer->GetSize(), RLM_ReadOnly);
-            FMemory::Memcpy(SumArr.GetData(), SumDataPtr, DebugBuffer.Buffer->GetSize());
-            RHIUnlockStructuredBuffer(DebugBuffer.Buffer);
-
-            for (int32 i=0; i<SumDataCount; ++i)
-            {
-                UE_LOG(LogTemp,Warning, TEXT("DebugBuffer[%d]: %s"), i, *SumArr[i].ToString());
-            }
-        }
-    }
-#endif
 
     if (BlockGroupCount > 1)
     {
@@ -548,7 +470,7 @@ int32 FRULReduceScan::ReduceTexture(
         // Block sum scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceLocalScan"));
-        TShaderMapRef<FRULReduceLocalScanCS<ScanDataType>> BlockScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceLocalScanCS<ScanDataType, ScanOpType>> BlockScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         BlockScanCS->SetShader(RHICmdList);
         BlockScanCS->BindSRV(RHICmdList, TEXT("SrcData"), SumBuffer.SRV);
         BlockScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBlockBuffer.UAV);
@@ -560,7 +482,7 @@ int32 FRULReduceScan::ReduceTexture(
         // Block sum top level scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceTopLevelScan"));
-        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType, ScanOpType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBlockBuffer.UAV);
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_BlockCount"), BlockGroupCount);
@@ -587,7 +509,7 @@ int32 FRULReduceScan::ReduceTexture(
         // Top level scan
 
         RHICmdList.BeginComputePass(TEXT("RULReduceTopLevelScan"));
-        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+        TShaderMapRef<FRULReduceTopLevelScanCS<ScanDataType, ScanOpType>> TopLevelScanCS(GetGlobalShaderMap(GMaxRHIFeatureLevel));
         TopLevelScanCS->SetShader(RHICmdList);
         TopLevelScanCS->BindUAV(RHICmdList, TEXT("SumData"), SumBuffer.UAV);
         TopLevelScanCS->SetParameter(RHICmdList, TEXT("_BlockCount"), BlockCount);

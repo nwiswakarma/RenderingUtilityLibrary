@@ -44,20 +44,29 @@
 #define data_t uint
 #endif
 
-#ifndef REDUCE_OP
+#define REDUCE_OP_MAX 0
+#define REDUCE_OP_MIN 1
 
-#if REDUCE_OP_MAX
-#define REDUCE_OP(ValueA, ValueB) max(ValueA, ValueB)
-#elif REDUCE_OP_MIN
-#define REDUCE_OP(ValueA, ValueB) min(ValueA, ValueB)
-#else
-#define REDUCE_OP(ValueA, ValueB) max(ValueA, ValueB)
+#ifndef REDUCE_OP
+#define REDUCE_OP REDUCE_OP_MAX
 #endif
 
-#endif // REDUCE_OP
+// Reduce operation definition
 
-#ifndef TOP_LEVEL_SCAN_APPEND_SUM_TO_DATA
-#define TOP_LEVEL_SCAN_APPEND_SUM_TO_DATA 0
+#if REDUCE_OP == REDUCE_OP_MAX
+#define REDUCE_FUNC(ValueA, ValueB) max(ValueA, ValueB)
+#elif REDUCE_OP == REDUCE_OP_MIN
+#define REDUCE_FUNC(ValueA, ValueB) min(ValueA, ValueB)
+#else
+#define REDUCE_FUNC(ValueA, ValueB) max(ValueA, ValueB)
+#endif
+
+// Reduce operation default value
+
+#if REDUCE_OP == REDUCE_OP_MIN
+#define REDUCE_DEFAULT_VALUE 65504.0f
+#else
+#define REDUCE_DEFAULT_VALUE 0.f
 #endif
 
 uint4 _Dimension;
@@ -85,7 +94,7 @@ data_t ScanExclusiveBlock(uint n, uint lIdx)
         if (lIdx < nActive)
         {
             uint2 oid = offset*lid-1;
-            ldsData[oid.y] = REDUCE_OP(ldsData[oid.y], ldsData[oid.x]);
+            ldsData[oid.y] = REDUCE_FUNC(ldsData[oid.y], ldsData[oid.x]);
         }
     }
 
@@ -107,8 +116,8 @@ void LocalScanKernel(
     uint2 gidx01 = (2*gIdx) + uint2(0,1);
     uint2 lidx01 = (2*lIdx) + uint2(0,1);
 
-    ldsData[lidx01.x] = (gidx01.x < _ElementCount) ? SrcData[gidx01.x] : 0;
-    ldsData[lidx01.y] = (gidx01.y < _ElementCount) ? SrcData[gidx01.y] : 0;
+    ldsData[lidx01.x] = (gidx01.x < _ElementCount) ? SrcData[gidx01.x] : REDUCE_DEFAULT_VALUE;
+    ldsData[lidx01.y] = (gidx01.y < _ElementCount) ? SrcData[gidx01.y] : REDUCE_DEFAULT_VALUE;
 
     data_t sum = ScanExclusiveBlock(BLOCK_SIZE2, lIdx);
 
@@ -118,7 +127,6 @@ void LocalScanKernel(
     }
 }
 
-//[numthreads(TEX_BLOCK,TEX_BLOCK2,1)]
 [numthreads(BLOCK_SIZE,1,1)]
 void TextureLocalScanKernel(
     uint3 tid : SV_DispatchThreadID,
@@ -126,26 +134,6 @@ void TextureLocalScanKernel(
     uint3 gid : SV_GroupID
     )
 {
-#if 0
-    uint lIdx = lid.x + lid.y * TEX_BLOCK;
-
-    uint gx = 2 * tid.x;
-    uint gy = tid.y;
-
-    uint2 gid0 = uint2(gx  , gy);
-    uint2 gid1 = uint2(gx+1, gy);
-
-    uint gidx0 = gid0.x + gid0.y * _Dimension.x;
-    uint gidx1 = gid1.x + gid1.y * _Dimension.x;
-
-    uint lidx0 = 2 * lid.x + lid.y * TEX_BLOCK2;
-    uint lidx1 = lidx0 + 1;
-
-    ldsData[lidx0] = all(gid0<_Dimension.xy) ? SourceTexture[gid0] : 0;
-    ldsData[lidx1] = all(gid1<_Dimension.xy) ? SourceTexture[gid1] : 0;
-
-    data_t sum = ScanExclusiveBlock(BLOCK_SIZE2, lIdx);
-#else
     uint gIdx = GET_GLOBAL_IDX;
     uint lIdx = GET_LOCAL_IDX;
 
@@ -157,11 +145,10 @@ void TextureLocalScanKernel(
 
     uint2 lidx01 = (2*lIdx) + uint2(0,1);
 
-    ldsData[lidx01.x] = all(gidx0<_Dimension.xy) ? SourceTexture[gidx0] : 0;
-    ldsData[lidx01.y] = all(gidx1<_Dimension.xy) ? SourceTexture[gidx1] : 0;
+    ldsData[lidx01.x] = all(gidx0<_Dimension.xy) ? SourceTexture[gidx0] : REDUCE_DEFAULT_VALUE;
+    ldsData[lidx01.y] = all(gidx1<_Dimension.xy) ? SourceTexture[gidx1] : REDUCE_DEFAULT_VALUE;
 
     data_t sum = ScanExclusiveBlock(BLOCK_SIZE2, lIdx);
-#endif
 
     if (lIdx == 0)
     {
@@ -182,8 +169,8 @@ void TopLevelScanKernel(
     uint2 gidx01 = (2*gIdx) + uint2(0,1);
     uint2 lidx01 = (2*lIdx) + uint2(0,1);
 
-    ldsData[lidx01.x] = (gidx01.x < _BlockCount) ? SumData[gidx01.x] : 0;
-    ldsData[lidx01.y] = (gidx01.y < _BlockCount) ? SumData[gidx01.y] : 0;
+    ldsData[lidx01.x] = (gidx01.x < _BlockCount) ? SumData[gidx01.x] : REDUCE_DEFAULT_VALUE;
+    ldsData[lidx01.y] = (gidx01.y < _BlockCount) ? SumData[gidx01.y] : REDUCE_DEFAULT_VALUE;
 
     GROUP_LDS_BARRIER;
 
@@ -213,61 +200,4 @@ void WriteScanResultKernel(
     )
 {
     SumData[_ResultIndex] = SrcData[_ElementCount-1];
-}
-
-[numthreads(TEX_BLOCK,TEX_BLOCK2,1)]
-//[numthreads(BLOCK_SIZE,1,1)]
-//[numthreads(BLOCK_SIZE2,1,1)]
-void WriteTextureValueKernel(
-    uint3 tid : SV_DispatchThreadID,
-    uint3 lid : SV_GroupThreadID,
-    uint3 gid : SV_GroupID
-    )
-{
-    {
-        uint gx = 2 * tid.x;
-        uint gy = tid.y;
-
-        uint2 gid0 = uint2(gx  , gy);
-        uint2 gid1 = uint2(gx+1, gy);
-
-        uint gidx0 = gid0.x + gid0.y * _Dimension.x;
-        uint gidx1 = gid1.x + gid1.y * _Dimension.x;
-
-        uint lidx0 = 2 * lid.x + lid.y * TEX_BLOCK2;
-        uint lidx1 = lidx0 + 1;
-
-        ldsData[lidx0] = all(gid0<_Dimension.xy) ? SourceTexture[gid0] : 0;
-        ldsData[lidx1] = all(gid1<_Dimension.xy) ? SourceTexture[gid1] : 0;
-
-        if (all(gid0<_Dimension.xy))
-        {
-            SumData[gidx0] = ldsData[lidx0];
-        }
-
-        if (all(gid1<_Dimension.xy))
-        {
-            SumData[gidx1] = ldsData[lidx1];
-        }
-    }
-
-    //{
-    //    uint gIdx = GET_GLOBAL_IDX;
-
-    //    uint gx = 2 * (gIdx % TEX_HALF_STRIDE);
-    //    uint gy = gIdx / TEX_HALF_STRIDE;
-
-    //    uint2 gidx0 = uint2(gx  , gy);
-    //    uint2 gidx1 = uint2(gx+1, gy);
-
-    //    SumData[2*gIdx  ] = all(gidx0<_Dimension.xy) ? SourceTexture[gidx0] : 0;
-    //    SumData[2*gIdx+1] = all(gidx1<_Dimension.xy) ? SourceTexture[gidx1] : 0;
-    //}
-
-    //{
-    //    uint gIdx = GET_GLOBAL_IDX;
-    //    uint gx = gIdx % _Dimension.x;
-    //    uint gy = gIdx / _Dimension.x;
-    //    SumData[GET_GLOBAL_IDX] = SourceTexture[uint2(gx, gy)];
-    //}
 }

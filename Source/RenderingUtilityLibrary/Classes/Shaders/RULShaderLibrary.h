@@ -313,6 +313,8 @@ public:
         UTexture* SourceTexture,
         UTextureRenderTarget2D* RenderTarget,
         FRULShaderDrawConfig DrawConfig,
+        bool bApplyLevelMin = true,
+        bool bApplyLevelMax = true,
         UGWTTickEvent* CallbackEvent = nullptr
         );
 
@@ -321,7 +323,9 @@ public:
         ERHIFeatureLevel::Type FeatureLevel,
         FTexture* SourceTexture,
         FTextureRenderTarget2DResource* RenderTargetResource,
-        FRULShaderDrawConfig DrawConfig
+        FRULShaderDrawConfig DrawConfig,
+        bool bApplyLevelMin,
+        bool bApplyLevelMax
         );
 
     UFUNCTION(BlueprintCallable, meta=(AdvancedDisplay="CallbackEvent"))
@@ -353,74 +357,4 @@ public:
 
     UFUNCTION(BlueprintCallable, BlueprintPure)
     static void ConvertPointToScreenCoordinate(FVector2D Point, FVector2D& ScreenPoint, int32 DrawSizeX, int32 DrawSizeY);
-
-    UFUNCTION(BlueprintCallable)
-    static void TestPrefixSumScan(
-        UObject* WorldContextObject,
-        int32 TestCount,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan1D(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        float MaxValue,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan2D(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        float MaxValue,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan4D(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        float MaxValue,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan1DUint(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan2DUint(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
-
-    UFUNCTION(BlueprintCallable)
-    static void TestReduceScan4DUint(
-        UObject* WorldContextObject,
-        int32 Seed,
-        int32 TestCount,
-        int32 MaxValueIndex,
-        bool bRandomizeIndex,
-        UGWTTickEvent* CallbackEvent = nullptr
-        );
 };
