@@ -364,6 +364,16 @@ struct FRULByteAddressBuffer
 		SRV = RHICreateShaderResourceView(Buffer);
 	}
 
+    void Initialize(uint32 InNumBytes, FResourceArrayInterface* InitResourceArrayPtr, uint32 AdditionalUsage = 0)
+    {
+		NumBytes = InNumBytes;
+		check(GMaxRHIFeatureLevel == ERHIFeatureLevel::SM5);
+		check(NumBytes % 4 == 0);
+		FRHIResourceCreateInfo CreateInfo(InitResourceArrayPtr);
+		Buffer = RHICreateStructuredBuffer(4, NumBytes, BUF_ShaderResource | BUF_ByteAddressBuffer | AdditionalUsage, CreateInfo);
+		SRV = RHICreateShaderResourceView(Buffer);
+    }
+
 	void Release()
 	{
 		NumBytes = 0;
@@ -375,6 +385,12 @@ struct FRULByteAddressBuffer
     {
         check(IsValid());
         return RHILockStructuredBuffer(Buffer, 0, Buffer->GetSize(), RLM_ReadOnly);
+    }
+
+    void* LockWriteOnly()
+    {
+        check(IsValid());
+        return RHILockStructuredBuffer(Buffer, 0, Buffer->GetSize(), RLM_WriteOnly);
     }
 
     void Unlock()
@@ -392,6 +408,12 @@ struct FRULRWByteAddressBuffer : public FRULByteAddressBuffer
 	void Initialize(uint32 InNumBytes, uint32 AdditionalUsage = 0)
 	{
 		FRULByteAddressBuffer::Initialize(InNumBytes, BUF_UnorderedAccess | AdditionalUsage);
+		UAV = RHICreateUnorderedAccessView(Buffer, false, false);
+	}
+
+    void Initialize(uint32 InNumBytes, FResourceArrayInterface* InitResourceArrayPtr, uint32 AdditionalUsage = 0)
+	{
+		FRULByteAddressBuffer::Initialize(InNumBytes, InitResourceArrayPtr, BUF_UnorderedAccess | AdditionalUsage);
 		UAV = RHICreateUnorderedAccessView(Buffer, false, false);
 	}
 
